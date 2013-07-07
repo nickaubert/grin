@@ -479,8 +479,8 @@ func rand_block(tetronimo [][]int, t_size int, stdscr gc.Window) {
 
 	// define "I" block
 	tetronimo_set[7][0][0] = 1
-	tetronimo_set[7][1][0] = 7
-	tetronimo_set[7][2][0] = 7
+	tetronimo_set[7][1][0] = 5
+	tetronimo_set[7][2][0] = 6
 	tetronimo_set[7][3][0] = 7
 
 	rand.Seed(time.Now().Unix())
@@ -511,10 +511,6 @@ func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
 		}
 	}
 
-	// hold_tetro := append( SliceType{} , tetronimo )
-	// hold_tetro := make([][]int, len(tetronimo))
-	// copy(hold_tetro, tetronimo)
-
 	// rotate
 	tl_tetro := make([][]int, len(tetronimo))
 	for row := range hold_tetro {
@@ -528,35 +524,41 @@ func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
 	}
 
 	// push toward top left corner of grid
-	left_col := 0
-	top_row  := 0
+	row_top  := 0
+	col_left := 0
+	row_offset := 0
+	col_offset := 0
 	for row := range tl_tetro {
-		if row == 0 {
-			for _ , col_val := range tl_tetro[row] {
-				top_row += col_val
-			}
+		for _ , col_val := range tl_tetro[row] {
+			row_top += col_val
 		}
-		left_col += tl_tetro[row][0]
+		if row_top == 0 {
+			row_offset += 1
+		}
+		col_left += tl_tetro[row][0]
 	}
 
-	col_offset := 0
-	if left_col == 0 {
+	if col_left == 0 {
 		col_offset = 1
 	}
-	row_offset := 0
+	/*
 	if top_row == 0 {
 		row_offset = 1
 	}
-	show_stats(stdscr, 15, "leftcol ", left_col)
+	*/
+	if row_offset > 2 {
+		row_offset = 2
+	}
+	// show_stats(stdscr, 15, "leftcol ", left_col)
 	show_stats(stdscr, 16, "offset  ", col_offset)
 	show_stats(stdscr, 17, "rowofset", row_offset)
-	show_stats(stdscr, 18, "top row ", top_row)
+	// show_stats(stdscr, 18, "top row ", top_row)
 
 	for row := range tl_tetro {
 		this_row := row - row_offset
 		if this_row < 0 {
 			for col := range tl_tetro[row] {
-				tetronimo[len(tl_tetro) - row_offset][col] = 0
+				tetronimo[len(tl_tetro) + this_row][col] = 0
 			}
 		} else {
 			for col := range tl_tetro[this_row] {
