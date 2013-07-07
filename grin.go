@@ -2,11 +2,25 @@ package main
 
 // http://tetrisconcept.net/wiki/Tetris_Guideline
 
-import gc "code.google.com/p/goncurses"
 import "fmt"
 import "math/rand"
 import "time"
 import "runtime"
+
+import gc "code.google.com/p/goncurses"
+
+/*
+	TODO:
+		Fix rotate: when rotate, move top left of grid
+		Hard drop
+		Keep score, stats
+		Speedup
+		Print score, stats on exit
+	Improvements:
+		Adjustible well size and tetronimo set
+		Random debris map at start
+		Two players?
+*/
 
 func main() {
 
@@ -16,6 +30,7 @@ func main() {
 
 	// curses colors
 	gc.StartColor()
+	gc.InitPair(0, gc.C_BLACK, gc.C_BLACK)
 	gc.InitPair(1, gc.C_BLACK, gc.C_BLUE)
 	gc.InitPair(2, gc.C_BLACK, gc.C_YELLOW)
 	gc.InitPair(3, gc.C_BLACK, gc.C_MAGENTA)
@@ -23,7 +38,6 @@ func main() {
 	gc.InitPair(5, gc.C_BLACK, gc.C_GREEN)
 	gc.InitPair(6, gc.C_BLACK, gc.C_CYAN)
 	gc.InitPair(7, gc.C_BLACK, gc.C_RED)
-	gc.InitPair(8, gc.C_BLACK, gc.C_BLACK)
 
 	// define well
 	well_depth := 20
@@ -100,7 +114,7 @@ func main() {
 		}
 
 		// move block
-		block_status := move_block(stdscr, well_dimensions, block_location, movement, block_id, tetronimo, debris_map)
+		block_status := move_block(stdscr, well_dimensions, block_location, movement, tetronimo, debris_map)
 
 		// new block?
 		if block_status == 2 {
@@ -111,8 +125,8 @@ func main() {
 				for t_horz := range tetronimo[t_vert] {
 					t_bit_vert := block_height - t_vert
 					t_bit_horz := block_longitude + t_horz
-					if tetronimo[t_vert][t_horz] == 1 {
-						debris_map[t_bit_vert][t_bit_horz] = block_id + 1
+					if tetronimo[t_vert][t_horz] > 0 {
+						debris_map[t_bit_vert][t_bit_horz] = tetronimo[t_vert][t_horz]
 					}
 				}
 			}
@@ -139,7 +153,7 @@ func show_stats(stdscr gc.Window, height int, show_text string, show_val int) {
 
 }
 
-func move_block(stdscr gc.Window, well_dimensions, block_location []int, operation string, block_id int, tetronimo, debris_map [][]int) int {
+func move_block(stdscr gc.Window, well_dimensions, block_location []int, operation string, tetronimo, debris_map [][]int) int {
 
 	block_height := block_location[0]
 	block_longitude := block_location[1]
@@ -154,7 +168,7 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 		}
 	}
 
-	draw_block(stdscr, well_dimensions, "erase", block_location, tetronimo, block_id)
+	draw_block(stdscr, well_dimensions, "erase", block_location, tetronimo )
 
 	retstat := 0
 	switch {
@@ -174,7 +188,7 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 	block_location[0] = block_height
 	block_location[1] = block_longitude
 
-	draw_block(stdscr, well_dimensions, "draw", block_location, tetronimo, block_id)
+	draw_block(stdscr, well_dimensions, "draw", block_location, tetronimo )
 
 	return retstat
 
@@ -214,7 +228,7 @@ func check_collisions(well_dimensions, block_location []int, tetronimo, debris_m
 			t_bit_vert := ghost_height - t_vert
 			t_bit_horz := ghost_longitude + t_horz
 
-			if ghost_tetro[t_vert][t_horz] == 1 {
+			if ghost_tetro[t_vert][t_horz] > 0 {
 				if t_bit_horz < 0 {
 					return true
 				}
@@ -248,28 +262,24 @@ func sound_depth(block_location []int, debris_map [][]int) int {
 	return 0
 }
 
-func draw_block(stdscr gc.Window, well_dimensions []int, operation string, block_location []int, tetronimo [][]int, block_id int) {
+func draw_block(stdscr gc.Window, well_dimensions []int, operation string, block_location []int, tetronimo [][]int ) {
 
 	block_height := block_location[0]
 	block_longitude := block_location[1]
-
-	block_paint := "  "
-	// color := 2
-	color := block_id + 1
-
-	show_stats(stdscr, 6, "block_id    ", block_id)
-
-	if operation == "erase" {
-		color = 8
-	}
 
 	_, term_col := stdscr.Maxyx()
 	well_bottom := well_dimensions[0] + well_dimensions[2]
 	well_left := ((term_col / 2) - well_dimensions[1])
 
+	block_paint := "  "
+
 	for t_vert := range tetronimo {
 		for t_horz := range tetronimo[t_vert] {
-			if tetronimo[t_vert][t_horz] == 1 {
+			if tetronimo[t_vert][t_horz] > 0 {
+				color := 0
+				if operation == "draw" {
+					color = tetronimo[t_vert][t_horz]
+				}
 				stdscr.ColorOn(byte(color))
 				stdscr.MovePrint((well_bottom - block_height + t_vert), (well_left + (block_longitude * 2) + (t_horz * 2)), block_paint)
 				stdscr.ColorOff(byte(color))
@@ -310,13 +320,13 @@ func draw_border(stdscr gc.Window, well_dimensions []int) {
 
 }
 
-func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronimo, debris_map [][]int, t_size int) int {
+func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronimo , debris_map [][]int, t_size int) int {
 
 	block_location[0] = well_dimensions[0] - 1 // block_height
 	block_location[1] = well_dimensions[1] / 2 // block_longitude
 
-	// show_stats( stdscr , 8 , "random" , rand_tetro )
-	block_id := rand_block(tetronimo, t_size)
+	rand_block(tetronimo, t_size, stdscr)
+	show_stats(stdscr, 14, "tetronimo  ", len(tetronimo))
 
 	block_height := block_location[0]
 	block_longitude := block_location[1]
@@ -324,7 +334,7 @@ func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronim
 		for t_horz := range tetronimo[t_vert] {
 			t_bit_vert := block_height - t_vert
 			t_bit_horz := block_longitude + t_horz
-			if tetronimo[t_vert][t_horz] == 1 {
+			if tetronimo[t_vert][t_horz] > 0 {
 				if debris_map[t_bit_vert][t_bit_horz] > 0 {
 					return 8 // game over!
 				}
@@ -334,7 +344,7 @@ func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronim
 
 	draw_debris(stdscr, well_dimensions, debris_map)
 
-	return block_id
+	return 0
 }
 
 func draw_debris(stdscr gc.Window, well_dimensions []int, debris_map [][]int) {
@@ -349,7 +359,6 @@ func draw_debris(stdscr gc.Window, well_dimensions []int, debris_map [][]int) {
 			col_loc := ((term_col / 2) - well_dimensions[1]) + (col * 2)
 			if debris_map[row][col] > 0 {
 				color := debris_map[row][col]
-				// stdscr.MovePrint( row_loc , col_loc  , "DD" )
 				stdscr.ColorOn(byte(color))
 				stdscr.MovePrint(row_loc, col_loc, "  ")
 				stdscr.ColorOff(byte(color))
@@ -411,12 +420,16 @@ func clear_debris(well_dimensions []int, debris_map [][]int, stdscr gc.Window) {
 
 }
 
-func rand_block(tetronimo [][]int, t_size int) int {
+func rand_block(tetronimo [][]int, t_size int, stdscr gc.Window) {
 
 	set_count := 7
 
-	tetronimo_set := make([][][]int, set_count)
-	for set_num := 0; set_num < set_count; set_num++ {
+	tetronimo_set := make([][][]int, set_count + 1)
+	for set_num := 0; set_num <= set_count; set_num++ {
+
+		tetro_def := make([][]int, 2)
+		tetronimo_set[set_num] = tetro_def
+
 		tetro_row := make([][]int, t_size)
 		for i := 0; i < t_size; i++ {
 			tetro_col := make([]int, t_size)
@@ -425,58 +438,61 @@ func rand_block(tetronimo [][]int, t_size int) int {
 		tetronimo_set[set_num] = tetro_row
 	}
 
+	// there is no tetronimo_set[0]
+
 	// define "O" block
-	tetronimo_set[0][1][1] = 1
-	tetronimo_set[0][1][2] = 1
-	tetronimo_set[0][2][1] = 1
-	tetronimo_set[0][2][2] = 1
+	tetronimo_set[1][1][1] = 1
+	tetronimo_set[1][1][2] = 1
+	tetronimo_set[1][2][1] = 1
+	tetronimo_set[1][2][2] = 1
 
 	// define "T" block
-	tetronimo_set[1][0][0] = 1
-	tetronimo_set[1][0][1] = 1
-	tetronimo_set[1][0][2] = 1
-	tetronimo_set[1][1][1] = 1
+	tetronimo_set[2][0][0] = 2
+	tetronimo_set[2][0][1] = 2
+	tetronimo_set[2][0][2] = 2
+	tetronimo_set[2][1][1] = 2
 
 	// define "L" block
-	tetronimo_set[2][0][0] = 1
-	tetronimo_set[2][1][0] = 1
-	tetronimo_set[2][2][0] = 1
-	tetronimo_set[2][2][1] = 1
+	tetronimo_set[3][0][0] = 3
+	tetronimo_set[3][1][0] = 3
+	tetronimo_set[3][2][0] = 3
+	tetronimo_set[3][2][1] = 3
 
 	// define "J" block
-	tetronimo_set[3][0][1] = 1
-	tetronimo_set[3][1][1] = 1
-	tetronimo_set[3][2][0] = 1
-	tetronimo_set[3][2][1] = 1
+	tetronimo_set[4][0][1] = 4
+	tetronimo_set[4][1][1] = 4
+	tetronimo_set[4][2][0] = 4
+	tetronimo_set[4][2][1] = 4
 
 	// define "S" block
-	tetronimo_set[4][0][0] = 1
-	tetronimo_set[4][1][0] = 1
-	tetronimo_set[4][1][1] = 1
-	tetronimo_set[4][2][1] = 1
+	tetronimo_set[5][0][0] = 5
+	tetronimo_set[5][1][0] = 5
+	tetronimo_set[5][1][1] = 5
+	tetronimo_set[5][2][1] = 5
 
 	// define "Z" block
-	tetronimo_set[5][0][1] = 1
-	tetronimo_set[5][1][0] = 1
-	tetronimo_set[5][1][1] = 1
-	tetronimo_set[5][2][0] = 1
+	tetronimo_set[6][0][1] = 6
+	tetronimo_set[6][1][0] = 6
+	tetronimo_set[6][1][1] = 6
+	tetronimo_set[6][2][0] = 6
 
 	// define "I" block
-	tetronimo_set[6][0][1] = 1
-	tetronimo_set[6][1][1] = 1
-	tetronimo_set[6][2][1] = 1
-	tetronimo_set[6][3][1] = 1
+	tetronimo_set[7][0][1] = 7
+	tetronimo_set[7][1][1] = 7
+	tetronimo_set[7][2][1] = 7
+	tetronimo_set[7][3][1] = 7
 
 	rand.Seed(time.Now().Unix())
 	rand_tetro := rand.Intn(set_count)
 
 	for row := range tetronimo {
 		for col := range tetronimo[row] {
-			tetronimo[row][col] = tetronimo_set[rand_tetro][row][col]
+			tetronimo[row][col] = tetronimo_set[rand_tetro + 1][row][col]
 		}
 	}
 
-	return rand_tetro
+	show_stats(stdscr, 12, "rand_tetro ", len(tetronimo_set[rand_tetro + 1]))
+	show_stats(stdscr, 13, "tetronimo  ", len(tetronimo))
 
 }
 
@@ -500,26 +516,6 @@ func rotate_tetronimo(tetronimo [][]int) {
 			tetronimo[row][col] = hold_tetro[rotated_row][rotated_col]
 		}
 	}
-
-	/*
-	// stupid hardcode rotate
-	tetronimo[0][0] = hold_tetro[0][3]
-	tetronimo[0][1] = hold_tetro[1][3]
-	tetronimo[0][2] = hold_tetro[2][3]
-	tetronimo[0][3] = hold_tetro[3][3]
-	tetronimo[1][0] = hold_tetro[0][2]
-	tetronimo[1][1] = hold_tetro[1][2]
-	tetronimo[1][2] = hold_tetro[2][2]
-	tetronimo[1][3] = hold_tetro[3][2]
-	tetronimo[2][0] = hold_tetro[0][1]
-	tetronimo[2][1] = hold_tetro[1][1]
-	tetronimo[2][2] = hold_tetro[2][1]
-	tetronimo[2][3] = hold_tetro[3][1]
-	tetronimo[3][0] = hold_tetro[0][0]
-	tetronimo[3][1] = hold_tetro[1][0]
-	tetronimo[3][2] = hold_tetro[2][0]
-	tetronimo[3][3] = hold_tetro[3][0]
-	*/
 
 }
 
