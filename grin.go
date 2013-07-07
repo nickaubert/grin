@@ -12,22 +12,34 @@ func main() {
 	defer goncurses.End()
 
     // define well
+    well_depth    := 20
+    well_width    := 10
+    vert_headroom := 5
     well_dimensions := make( []int , 3 )
-    well_dimensions[0] = 20  // well_depth
-    well_dimensions[1] = 10  // well_width
-    well_dimensions[2] = 5   // vert_headroom
+    well_dimensions[0] = well_depth
+    well_dimensions[1] = well_width
+    well_dimensions[2] = vert_headroom
 
     draw_border( stdscr , well_dimensions )
 
-    debris_map := make( [][]int , well_dimensions[0] )
-    for i := 0 ; i < well_dimensions[0] ; i++ {
+    // tetromino
+    t_size := 3
+    tetronimo := make( [][]int , t_size )
+    for i := 0 ; i < t_size ; i++ {
+        tetro_row := make([]int, t_size)
+        tetronimo[i] = tetro_row
+    }
+
+    // debris map
+    debris_map := make( [][]int , well_depth + t_size )
+    for i := 0 ; i < ( well_depth + t_size ) ; i++ {
         debris_row := make([]int, well_dimensions[1])
         debris_map[i] = debris_row
     }
 
     // starting block location
     block_location  := make( []int , 2 )
-    new_block( stdscr , well_dimensions , block_location , debris_map )
+    new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map )
     show_stats( stdscr , 1 , "block height  " , block_location[0] )
     // block_location[0] = well_dimensions[0] - 1 // block_height
     // block_location[1] = well_dimensions[1] / 2 // block_longitude
@@ -63,12 +75,25 @@ func main() {
         }
 
         // move block 
-        block_status := move_block( stdscr , well_dimensions , block_location , movement , debris_map )
+        block_status := move_block( stdscr , well_dimensions , block_location , movement , tetronimo , debris_map )
 
         // new block?
         if block_status == 2 {
-            debris_map[block_location[0]][block_location[1]] = 1
-            nb_ret := new_block( stdscr , well_dimensions , block_location , debris_map )
+
+            block_height    := block_location[0]
+            block_longitude := block_location[1]
+            for t_vert := range tetronimo {
+                for t_horz := range tetronimo[t_vert] {
+                    t_bit_vert := block_height    - t_vert
+                    t_bit_horz := block_longitude + t_horz
+                    if tetronimo[t_vert][t_horz] == 1 {
+                        debris_map[t_bit_vert][t_bit_horz] = 1
+                    }
+                }
+            }
+
+            clear_debris( well_dimensions , debris_map , stdscr )
+            nb_ret := new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map )
             if nb_ret == 2 {
                 keep_going = false
             }
@@ -88,12 +113,12 @@ func show_stats( stdscr goncurses.Window , height int , show_text string , show_
 
 }
 
-func move_block( stdscr goncurses.Window , well_dimensions , block_location []int , operation string , debris_map [][]int) int {
+func move_block( stdscr goncurses.Window , well_dimensions , block_location []int , operation string , tetronimo , debris_map [][]int) int {
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
 
-    blocked := check_collisions( well_dimensions , block_location , debris_map , operation )
+    blocked := check_collisions( well_dimensions , block_location , tetronimo , debris_map , operation )
 
     if blocked == true {
         if operation == "dropone" {
@@ -103,7 +128,7 @@ func move_block( stdscr goncurses.Window , well_dimensions , block_location []in
         }
     }
 
-    draw_block( stdscr , well_dimensions , "erase" , block_location )
+    draw_block( stdscr , well_dimensions , "erase" , block_location , tetronimo )
 
     retstat := 0
     switch {
@@ -121,44 +146,54 @@ func move_block( stdscr goncurses.Window , well_dimensions , block_location []in
     block_location[0] = block_height
     block_location[1] = block_longitude
 
-    draw_block( stdscr , well_dimensions , "draw" , block_location )
+    draw_block( stdscr , well_dimensions , "draw" , block_location , tetronimo )
 
     return retstat
 
 }
 
-func check_collisions( well_dimensions , block_location []int , debris_map [][]int , operation string ) bool {
+func check_collisions( well_dimensions , block_location []int , tetronimo , debris_map [][]int , operation string ) bool {
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
-    blocked := false
-    switch {
-        case operation == "left" :
-            switch {
-                case block_longitude == 0 :
-                    blocked = true
-                case debris_map[block_height][block_longitude - 1] == 1 :
-                    blocked = true
+
+    for t_vert := range tetronimo {
+        for t_horz := range tetronimo[t_vert] {
+
+            t_bit_vert := block_height    - t_vert
+            t_bit_horz := block_longitude + t_horz
+
+            if tetronimo[t_vert][t_horz] == 1 {
+                switch {
+                    case operation == "left" :
+                        switch {
+                            case t_bit_horz == 0 :
+                                return true
+                            case debris_map[t_bit_vert][t_bit_horz - 1] == 1 :
+                                return true
+                        }
+                    case operation == "right" :
+                        switch {
+                            case t_bit_horz == ( well_dimensions[1] - 1 ) :
+                                return true
+                            case debris_map[t_bit_vert][t_bit_horz + 1] == 1 :
+                                return true
+                        }
+                    case operation == "dropone" :
+                        switch {
+                            case t_bit_vert == 0 :
+                                return true
+                            case debris_map[t_bit_vert - 1 ][t_bit_horz] == 1 :
+                                return true
+                        }
+                    case operation == "drop" :
+                        // nothing to do here yet
+                }
             }
-        case operation == "right" :
-            switch {
-                case block_location[1] == ( well_dimensions[1] - 1 ) :
-                    blocked = true
-                case debris_map[block_height][block_longitude + 1] == 1 :
-                    blocked = true
-            }
-        case operation == "dropone" :
-            switch {
-                case block_location[0] == 0 :
-                    blocked = true
-                case debris_map[block_height - 1 ][block_longitude] == 1 :
-                    blocked = true
-            }
-        case operation == "drop" :
-            blocked = false // nothing to do here yet
+        }
     }
 
-    return blocked
+    return false
 }
 
 func sound_depth( block_location []int , debris_map [][]int ) int {
@@ -175,12 +210,7 @@ func sound_depth( block_location []int , debris_map [][]int ) int {
     return 0
 }
 
-func draw_block( stdscr goncurses.Window , well_dimensions []int , operation string , block_location []int ) bool {
-
-    // terminal size
-    _, term_col := stdscr.Maxyx()
-
-    well_left := ( ( term_col / 2 ) - well_dimensions[1] )
+func draw_block( stdscr goncurses.Window , well_dimensions []int , operation string , block_location []int , tetronimo [][]int ) {
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
@@ -189,12 +219,18 @@ func draw_block( stdscr goncurses.Window , well_dimensions []int , operation str
     if operation == "erase" {
         block_paint = "  "
     }
-    stdscr.MovePrint( ( well_dimensions[2] + well_dimensions[0] - block_height ) , ( well_left + ( block_longitude * 2 ) )  , block_paint )
 
-    if block_height == 0 {
-        return false
+    _, term_col := stdscr.Maxyx()
+    well_bottom := well_dimensions[0] + well_dimensions[2]
+    well_left := ( ( term_col / 2 ) - well_dimensions[1] )
+
+    for t_vert := range tetronimo {
+        for t_horz := range tetronimo[t_vert] {
+            if tetronimo[t_vert][t_horz] == 1 {
+                stdscr.MovePrint( ( well_bottom - block_height + t_vert ) , ( well_left + ( block_longitude * 2 ) + ( t_horz * 2 ) )  , block_paint )
+            }
+        }
     }
-    return true
 
 }
 
@@ -226,13 +262,54 @@ func draw_border( stdscr goncurses.Window , well_dimensions []int ) {
 
 }
 
-func new_block( stdscr goncurses.Window , well_dimensions , block_location []int , debris_map [][]int ) int {
+func new_block( stdscr goncurses.Window , well_dimensions , block_location []int , tetronimo , debris_map [][]int ) int {
 
     // show_stats( stdscr , 2 , "block ending loc" , block_location[1] )
-    stdscr.GetChar()
+    // stdscr.GetChar()
 
     block_location[0] = well_dimensions[0] - 1 // block_height
     block_location[1] = well_dimensions[1] / 2 // block_longitude
+
+    /*
+    // hardcode "+" block
+    tetronimo[0][1] = 1
+    tetronimo[1][0] = 1
+    tetronimo[1][1] = 1
+    tetronimo[1][2] = 1
+    tetronimo[2][1] = 1
+    */
+
+    // hardcode "L" block
+    // tetronimo[0][0] = 1
+    tetronimo[0][1] = 1
+    tetronimo[1][0] = 1
+    tetronimo[1][1] = 1
+
+    block_height    := block_location[0]
+    block_longitude := block_location[1]
+    for t_vert := range tetronimo {
+        for t_horz := range tetronimo[t_vert] {
+            t_bit_vert := block_height    - t_vert
+            t_bit_horz := block_longitude + t_horz
+            if tetronimo[t_vert][t_horz] == 1 {
+                /*
+                debris_height := len( debris_map ) // testing
+                show_stats( stdscr , 13 , "debris_height" , debris_height  )
+                show_stats( stdscr , 14 , "debris_width" , len( debris_map[10])  )
+                */
+                show_stats( stdscr , 14 , "debris_height" , len(debris_map)  )
+                show_stats( stdscr , 15 , "debris_width_18" , len( debris_map[18])  )
+                show_stats( stdscr , 16 , "debris_width_19" , len( debris_map[19])  )
+                show_stats( stdscr , 17 , "debris_width_20" , len( debris_map[20])  )
+                show_stats( stdscr , 18 , "t_bit_vert" , t_bit_vert  )
+                show_stats( stdscr , 19 , "t_bit_horz" , t_bit_horz  )
+                stdscr.GetChar()
+                if debris_map[t_bit_vert][t_bit_horz] == 1 {
+                    return 2 // game over!
+                }
+            }
+        }
+    }
 
     draw_debris( stdscr , well_dimensions , debris_map )
 
@@ -245,14 +322,135 @@ func draw_debris( stdscr goncurses.Window , well_dimensions []int , debris_map [
     vert_headroom := well_dimensions[2]
 
     // var well_width int
-    for row := 0 ; row < len( debris_map ) ; row++ {
-        for col := 0 ; col < len( debris_map[row] ) ; col++ {
+    for row := range debris_map {
+        for col := range debris_map[row] {
             row_loc := vert_headroom + well_dimensions[0] - row
             col_loc := ( ( term_col / 2 ) - well_dimensions[1] ) + ( col * 2 )
             if debris_map[row][col] == 1 {
                 stdscr.MovePrint( row_loc , col_loc  , "DD" )
+            } else {
+                stdscr.MovePrint( row_loc , col_loc  , "  " )
             }
         }
     }
 
 }
+
+// stdscr for debugging
+func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr goncurses.Window ) {
+
+    deb_height := len( debris_map )
+    // well_height := well_dimensions[0]
+    well_width  := well_dimensions[1]
+
+    clear_rows := make( []int , deb_height )
+    do_refresh := false
+
+    for d_vert := range debris_map {
+        d_count := 0
+        for d_horz := range debris_map[d_vert] {
+            if debris_map[d_vert][d_horz] == 1 {
+                d_count++
+            }
+        }
+        if d_count == well_width {
+            do_refresh = true
+            // clear_rows = append( clear_rows , d_vert )
+            show_stats( stdscr , 4 , "clear row" , d_vert  )
+            clear_rows[d_vert] = 1
+        }
+    }
+
+    // return here if no clear rows
+    if do_refresh == false {
+        return
+    }
+
+    /*
+    fresh_map := make( [][]int , deb_height )
+    for i := 0 ; i < deb_height ; i++ {
+        fresh_row := make([]int, well_width)
+        fresh_map[i] = fresh_row
+    }
+    */
+
+    down_rows := 0
+    // fresh_rowcount := 0
+    // for d_vert := 0 ; d_vert < len(debris_map) ; d_vert++ {
+    for d_vert := range debris_map {
+
+        if clear_rows[d_vert] == 1 {
+
+            down_rows++
+            /*
+            // next_row := make( []int , well_width )
+            next_rownum := d_vert + down_rows
+            if next_rownum < ( len(debris_map) - 1 ) {
+                next_row = debris_map[next_rownum]
+            }
+            debris_map[d_vert] = next_row
+            debris_map = append(debris_map[:d_vert-1] , debris_map[d_vert+down_rows:]... )
+            */
+
+        // } else {
+
+            // fresh_map[fresh_rowcount] = debris_map[d_vert]
+            // fresh_rowcount++
+            /*
+            fresh_row := make( []int , well_width )
+            debris_map = append(debris_map[:d_vert-1] , debris_map[d_vert+down_rows:]... )
+            debris_map = append(debris_map , fresh_row)
+            */
+
+        }
+
+        if ( d_vert + down_rows ) <= ( len( debris_map ) - 1 ) {
+          debris_map[d_vert] = debris_map[d_vert+down_rows]
+        } else {
+            fresh_row := make( []int , well_width )
+            debris_map[d_vert] = fresh_row
+        }
+
+    }
+
+    // need to insert fresh rows at top of map
+        /*
+        // append new rows
+        for i := 0 ; i < down_rows ; i++ {
+            fresh_row := make( []int , well_width )
+            debris_map[
+        }
+        */
+
+        // show_stats( stdscr , 5 , "downn_rows" , down_rows  )
+
+        // show_stats( stdscr , 9  , "debris_height" , len( debris_map )  )
+        // show_stats( stdscr , 10 , "debris_width"  , len( debris_map[10])  )
+
+
+
+        // show_stats( stdscr , 11  , "debris_height" , len( debris_map )  )
+        // show_stats( stdscr , 12 , "debris_width"  , len( debris_map[10])  )
+        // show_stats( stdscr , 13 , "check_height"  , d_vert  )
+        // stdscr.GetChar()
+
+        // show_stats( stdscr , 6 , "nextnum" , next_rownum  )
+        // stdscr.GetChar()
+        // next_row := debris_map[next_rownum]
+        // debris_map[w_vert] = next_row
+
+    // debris_map = fresh_map
+    /*
+    for i := range fresh_map {
+        //  next_row := make( []int , well_width )
+        show_stats( stdscr , 20 , "current map"  , len( fresh_map )  )
+        // show_stats( stdscr , 21 , "new_dwidth"  , len( next_row )  )
+        // debris_map = append( debris_map , next_row )
+            show_stats( stdscr , 22 , "this drow"  , i  )
+            show_stats( stdscr , 23 , "row len  "  , len( fresh_map[i] )  )
+            stdscr.GetChar()
+    }
+    */
+
+}
+
