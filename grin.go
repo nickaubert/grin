@@ -2,7 +2,7 @@ package main
 
 // http://tetrisconcept.net/wiki/Tetris_Guideline
 
-import "code.google.com/p/goncurses"
+import gc "code.google.com/p/goncurses"
 import "fmt"
 import "math/rand"
 import "time"
@@ -11,8 +11,18 @@ import "runtime"
 func main() {
 
     // curses
-	stdscr, _ := goncurses.Init()
-	defer goncurses.End()
+	stdscr, _ := gc.Init()
+	defer gc.End()
+
+    // curses colors
+    gc.StartColor()
+    gc.InitPair(1, gc.C_BLACK, gc.C_RED)
+    gc.InitPair(2, gc.C_BLACK, gc.C_GREEN)
+    gc.InitPair(3, gc.C_BLACK, gc.C_BLUE)
+    gc.InitPair(4, gc.C_BLACK, gc.C_CYAN)
+    gc.InitPair(5, gc.C_BLACK, gc.C_MAGENTA)
+    gc.InitPair(6, gc.C_BLACK, gc.C_WHITE)
+    gc.InitPair(7, gc.C_BLACK, gc.C_YELLOW)
 
     // define well
     well_depth    := 20
@@ -54,11 +64,6 @@ func main() {
     go t_timer ( ct )
 
     for keep_going := true ; keep_going == true ; {
-
-        // show_stats( stdscr , 1 , "block height  " , block_location[0] )
-        // show_stats( stdscr , 2 , "block longtude" , block_location[1] )
-        // show_stats( stdscr , 4 , "deb len       " , len( debris_map ) )
-        show_stats( stdscr , 1 , "goroutines    " , runtime.NumGoroutine() )
 
         var somechar int
         hithere := 0
@@ -117,23 +122,25 @@ func main() {
                 keep_going = false
             }
         }
+        show_stats( stdscr , 1 , "goroutines    " , runtime.NumGoroutine() )
         stdscr.Refresh()
+
 
     }
 
-	goncurses.End()
+	gc.End()
 
 }
 
 
-func show_stats( stdscr goncurses.Window , height int , show_text string , show_val int ) {
+func show_stats( stdscr gc.Window , height int , show_text string , show_val int ) {
 
     bh_status := fmt.Sprintf( "%s : %02d     " , show_text , show_val )
     stdscr.MovePrint( height , 1  , bh_status )
 
 }
 
-func move_block( stdscr goncurses.Window , well_dimensions , block_location []int , operation string , tetronimo , debris_map [][]int) int {
+func move_block( stdscr gc.Window , well_dimensions , block_location []int , operation string , tetronimo , debris_map [][]int) int {
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
@@ -174,7 +181,7 @@ func move_block( stdscr goncurses.Window , well_dimensions , block_location []in
 
 }
 
-func check_collisions( well_dimensions , block_location []int , tetronimo , debris_map [][]int , operation string , stdscr goncurses.Window ) bool {
+func check_collisions( well_dimensions , block_location []int , tetronimo , debris_map [][]int , operation string , stdscr gc.Window ) bool {
 
     ghost_height    := block_location[0]
     ghost_longitude := block_location[1]
@@ -242,7 +249,7 @@ func sound_depth( block_location []int , debris_map [][]int ) int {
     return 0
 }
 
-func draw_block( stdscr goncurses.Window , well_dimensions []int , operation string , block_location []int , tetronimo [][]int ) {
+func draw_block( stdscr gc.Window , well_dimensions []int , operation string , block_location []int , tetronimo [][]int ) {
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
@@ -266,7 +273,7 @@ func draw_block( stdscr goncurses.Window , well_dimensions []int , operation str
 
 }
 
-func draw_border( stdscr goncurses.Window , well_dimensions []int ) {
+func draw_border( stdscr gc.Window , well_dimensions []int ) {
 
     // terminal size
     // term_row, term_col := stdscr.Maxyx()
@@ -282,8 +289,21 @@ func draw_border( stdscr goncurses.Window , well_dimensions []int ) {
 
     // draw sides
     for row_height := vert_headroom ; row_height < well_bottom ; row_height ++ {
-        stdscr.MovePrint( row_height , well_left  , " |" )
+
         stdscr.MovePrint( row_height , well_right , "| " )
+
+        color := 3
+        stdscr.ColorOn(byte(color))
+        stdscr.MovePrint( row_height , well_left  , " |" , color )
+        // stdscr.AddChar( gc.ACS_DIAMOND )
+        stdscr.ColorOff(byte(color))
+
+        // stdscr.MovePrint( row_height , well_left  , " |" )
+
+        // stdscr.MovePrint( row_height , well_left  , " " )
+        // stdscr.AddChar( ACS_DIAMOND | A_REVERSE )
+        // stdscr.AddChar( gc.ACS_DIAMOND )
+
     }
 
     for col_loc := ( well_left + 1 ) ; col_loc <= well_right ; col_loc ++ {
@@ -294,7 +314,7 @@ func draw_border( stdscr goncurses.Window , well_dimensions []int ) {
 
 }
 
-func new_block( stdscr goncurses.Window , well_dimensions , block_location []int , tetronimo , debris_map [][]int , t_size int ) int {
+func new_block( stdscr gc.Window , well_dimensions , block_location []int , tetronimo , debris_map [][]int , t_size int ) int {
 
     block_location[0] = well_dimensions[0] - 1 // block_height
     block_location[1] = well_dimensions[1] / 2 // block_longitude
@@ -321,7 +341,7 @@ func new_block( stdscr goncurses.Window , well_dimensions , block_location []int
     return 0
 }
 
-func draw_debris( stdscr goncurses.Window , well_dimensions []int , debris_map [][]int ) {
+func draw_debris( stdscr gc.Window , well_dimensions []int , debris_map [][]int ) {
 
     _, term_col := stdscr.Maxyx()
     vert_headroom := well_dimensions[2]
@@ -342,7 +362,7 @@ func draw_debris( stdscr goncurses.Window , well_dimensions []int , debris_map [
 }
 
 // stdscr for debugging
-func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr goncurses.Window ) {
+func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr gc.Window ) {
 
     deb_height := len( debris_map )
     well_width := well_dimensions[1]
@@ -489,7 +509,7 @@ func rotate_tetronimo ( tetronimo [][]int ) {
 
 }
 
-func keys_in ( stdscr goncurses.Window , ck chan int ) {
+func keys_in ( stdscr gc.Window , ck chan int ) {
     somechar := int( stdscr.GetChar() )
     ck <- somechar
 }
