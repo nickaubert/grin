@@ -442,10 +442,10 @@ func rand_block(tetronimo [][]int, t_size int, stdscr gc.Window) {
 	// there is no tetronimo_set[0]
 
 	// define "O" block
-	tetronimo_set[1][1][1] = 2
-	tetronimo_set[1][1][2] = 1
-	tetronimo_set[1][2][1] = 1
-	tetronimo_set[1][2][2] = 1
+	tetronimo_set[1][0][0] = 1
+	tetronimo_set[1][0][1] = 2
+	tetronimo_set[1][1][0] = 3
+	tetronimo_set[1][1][1] = 4
 
 	// define "T" block
 	tetronimo_set[2][0][0] = 3
@@ -478,13 +478,15 @@ func rand_block(tetronimo [][]int, t_size int, stdscr gc.Window) {
 	tetronimo_set[6][2][0] = 6
 
 	// define "I" block
-	tetronimo_set[7][0][1] = 1
-	tetronimo_set[7][1][1] = 7
-	tetronimo_set[7][2][1] = 7
-	tetronimo_set[7][3][1] = 7
+	tetronimo_set[7][0][0] = 1
+	tetronimo_set[7][1][0] = 7
+	tetronimo_set[7][2][0] = 7
+	tetronimo_set[7][3][0] = 7
 
 	rand.Seed(time.Now().Unix())
 	rand_tetro := rand.Intn(set_count)
+	// rand_tetro := 6  // TESTING i block
+	// rand_tetro := 0  // TESTING o block
 
 	for row := range tetronimo {
 		for col := range tetronimo[row] {
@@ -525,28 +527,45 @@ func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
 		}
 	}
 
-	// move to top left corner of grid
-	r_offset := 0
-	// c_offset := 0
+	// push toward top left corner of grid
+	left_col := 0
+	top_row  := 0
 	for row := range tl_tetro {
-		row_sum := 0
-		for col , col_val := range tl_tetro[row] {
-			// tetronimo[row][col] = tl_tetro[row][col]
-			show_stats(stdscr, 15, "row  ", row)
-			show_stats(stdscr, 16, "col  ", col)
-			show_stats(stdscr, 17, "val  ", col_val)
-			// stdscr.GetChar()
-			row_sum += col_val
+		if row == 0 {
+			for _ , col_val := range tl_tetro[row] {
+				top_row += col_val
+			}
 		}
-		if row_sum == 0 {
-			r_offset += 1
-		}
+		left_col += tl_tetro[row][0]
 	}
 
+	col_offset := 0
+	if left_col == 0 {
+		col_offset = 1
+	}
+	row_offset := 0
+	if top_row == 0 {
+		row_offset = 1
+	}
+	show_stats(stdscr, 15, "leftcol ", left_col)
+	show_stats(stdscr, 16, "offset  ", col_offset)
+	show_stats(stdscr, 17, "rowofset", row_offset)
+	show_stats(stdscr, 18, "top row ", top_row)
+
 	for row := range tl_tetro {
-		if ( row - r_offset ) >= 0 {
+		this_row := row - row_offset
+		if this_row < 0 {
 			for col := range tl_tetro[row] {
-				tetronimo[row - r_offset][col] = tl_tetro[row][col]
+				tetronimo[len(tl_tetro) - row_offset][col] = 0
+			}
+		} else {
+			for col := range tl_tetro[this_row] {
+				this_col := col - col_offset
+				if this_col < 0 {
+					tetronimo[this_row][len(tl_tetro[row])-col_offset] = 0
+				} else {
+					tetronimo[this_row][this_col] = tl_tetro[row][col]
+				}
 			}
 		}
 	}
@@ -559,6 +578,7 @@ func keys_in(stdscr gc.Window, ck chan int) {
 }
 
 func t_timer(ct chan int) {
-	time.Sleep(1000 * time.Millisecond)
+	// time.Sleep(1000 * time.Millisecond)
+	time.Sleep(100000 * time.Second)
 	ct <- 110
 }
