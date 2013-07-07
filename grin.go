@@ -41,7 +41,7 @@ func main() {
 
     // starting block
     block_location  := make( []int , 2 )
-    new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map )
+    new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map , t_size )
     show_stats( stdscr , 1 , "block height  " , block_location[0] )
 
     for keep_going := true ; keep_going == true ; {
@@ -68,6 +68,8 @@ func main() {
                 movement = "right"
             case somechar == 110 : // n
                 movement = "dropone"
+            case somechar == 107 : // k
+                movement = "rotate"
             case somechar == 32 :  // [space]
                 movement = "drop"
         }
@@ -95,7 +97,7 @@ func main() {
             }
 
             clear_debris( well_dimensions , debris_map , stdscr )
-            nb_ret := new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map )
+            nb_ret := new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map , t_size )
             if nb_ret == 2 {
                 keep_going = false
             }
@@ -138,6 +140,8 @@ func move_block( stdscr goncurses.Window , well_dimensions , block_location []in
             block_longitude--
         case operation == "right" :
             block_longitude++
+        case operation == "rotate" :
+            rotate_tetronimo( tetronimo )
         case operation == "dropone" :
             block_height--
         case operation == "drop" :
@@ -156,40 +160,50 @@ func move_block( stdscr goncurses.Window , well_dimensions , block_location []in
 
 func check_collisions( well_dimensions , block_location []int , tetronimo , debris_map [][]int , operation string ) bool {
 
-    block_height    := block_location[0]
-    block_longitude := block_location[1]
+    ghost_height    := block_location[0]
+    ghost_longitude := block_location[1]
 
-    for t_vert := range tetronimo {
-        for t_horz := range tetronimo[t_vert] {
+    ghost_tetro := make( [][]int , len(tetronimo) )
+    for row := 0 ; row < len(tetronimo) ; row++ {
+        tetro_row := make([]int, len(tetronimo[0]))
+        ghost_tetro[row] = tetro_row
+        for col := 0 ; col < len(tetronimo[0]) ; col++ {
+            ghost_tetro[row][col] = tetronimo[row][col]
+        }
+    }
 
-            t_bit_vert := block_height    - t_vert
-            t_bit_horz := block_longitude + t_horz
+    switch {
+        case operation == "left" :
+            ghost_longitude--
+        case operation == "right" :
+            ghost_longitude++
+        case operation == "rotate" :
+            rotate_tetronimo( ghost_tetro )
+        case operation == "dropone" :
+            ghost_height--
+        case operation == "drop" :
+            ghost_height = sound_depth( block_location , debris_map )
+            // retstat = 2
+    }
+
+    for t_vert := range ghost_tetro {
+        for t_horz := range ghost_tetro[t_vert] {
+
+            t_bit_vert := ghost_height    - t_vert
+            t_bit_horz := ghost_longitude + t_horz
 
             if tetronimo[t_vert][t_horz] == 1 {
-                switch {
-                    case operation == "left" :
-                        switch {
-                            case t_bit_horz == 0 :
-                                return true
-                            case debris_map[t_bit_vert][t_bit_horz - 1] == 1 :
-                                return true
-                        }
-                    case operation == "right" :
-                        switch {
-                            case t_bit_horz == ( well_dimensions[1] - 1 ) :
-                                return true
-                            case debris_map[t_bit_vert][t_bit_horz + 1] == 1 :
-                                return true
-                        }
-                    case operation == "dropone" :
-                        switch {
-                            case t_bit_vert == 0 :
-                                return true
-                            case debris_map[t_bit_vert - 1 ][t_bit_horz] == 1 :
-                                return true
-                        }
-                    case operation == "drop" :
-                        // nothing to do here yet
+                if t_bit_horz < 0 {
+                    return true
+                }
+                if t_bit_horz >= well_dimensions[1] {
+                    return true
+                }
+                if t_bit_vert < 0 {
+                    return true
+                }
+                if debris_map[t_bit_vert][t_bit_horz] == 1 {
+                    return true
                 }
             }
         }
@@ -264,13 +278,13 @@ func draw_border( stdscr goncurses.Window , well_dimensions []int ) {
 
 }
 
-func new_block( stdscr goncurses.Window , well_dimensions , block_location []int , tetronimo , debris_map [][]int ) int {
+func new_block( stdscr goncurses.Window , well_dimensions , block_location []int , tetronimo , debris_map [][]int , t_size int ) int {
 
     block_location[0] = well_dimensions[0] - 1 // block_height
     block_location[1] = well_dimensions[1] / 2 // block_longitude
 
     // show_stats( stdscr , 8 , "random" , rand_tetro )
-    rand_block( tetronimo )
+    rand_block( tetronimo , t_size )
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
@@ -361,19 +375,9 @@ func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr goncurse
 
 }
 
-func rand_block( tetronimo [][]int ) {
-
-    // define "+" block
-    /*
-    tetronimo[0][1] = 1
-    tetronimo[1][0] = 1
-    tetronimo[1][1] = 1
-    tetronimo[1][2] = 1
-    tetronimo[2][1] = 1
-    */
+func rand_block( tetronimo [][]int , t_size int ) {
 
     set_count := 7
-    t_size    := 4
 
     tetronimo_set := make( [][][]int , set_count )
     for set_num := 0 ; set_num < set_count ; set_num++ {
@@ -435,6 +439,36 @@ func rand_block( tetronimo [][]int ) {
             tetronimo[row][col] = tetronimo_set[rand_tetro][row][col]
         }
     }
-    // tetronimo = tetronimo_set[rand_tetro]
+
+}
+
+func rotate_tetronimo ( tetronimo [][]int ) {
+
+    hold_tetro := make( [][]int , len(tetronimo) )
+    for row := 0 ; row < len(tetronimo) ; row++ {
+        tetro_row := make([]int, len(tetronimo[0]))
+        hold_tetro[row] = tetro_row
+        for col := 0 ; col < len(tetronimo[0]) ; col++ {
+            hold_tetro[row][col] = tetronimo[row][col]
+        }
+    }
+
+    // stupid hardcode rotate
+    tetronimo[0][0] = hold_tetro[0][3]
+    tetronimo[0][1] = hold_tetro[1][3]
+    tetronimo[0][2] = hold_tetro[2][3]
+    tetronimo[0][3] = hold_tetro[3][3]
+    tetronimo[1][0] = hold_tetro[0][2]
+    tetronimo[1][1] = hold_tetro[1][2]
+    tetronimo[1][2] = hold_tetro[2][2]
+    tetronimo[1][3] = hold_tetro[3][2]
+    tetronimo[2][0] = hold_tetro[0][1]
+    tetronimo[2][1] = hold_tetro[1][1]
+    tetronimo[2][2] = hold_tetro[2][1]
+    tetronimo[2][3] = hold_tetro[3][1]
+    tetronimo[3][0] = hold_tetro[0][0]
+    tetronimo[3][1] = hold_tetro[1][0]
+    tetronimo[3][2] = hold_tetro[2][0]
+    tetronimo[3][3] = hold_tetro[3][0]
 
 }
