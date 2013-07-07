@@ -122,7 +122,7 @@ func move_block( stdscr goncurses.Window , well_dimensions , block_location []in
     block_height    := block_location[0]
     block_longitude := block_location[1]
 
-    blocked := check_collisions( well_dimensions , block_location , tetronimo , debris_map , operation )
+    blocked := check_collisions( well_dimensions , block_location , tetronimo , debris_map , operation , stdscr )
 
     if blocked == true {
         if operation == "dropone" {
@@ -158,7 +158,7 @@ func move_block( stdscr goncurses.Window , well_dimensions , block_location []in
 
 }
 
-func check_collisions( well_dimensions , block_location []int , tetronimo , debris_map [][]int , operation string ) bool {
+func check_collisions( well_dimensions , block_location []int , tetronimo , debris_map [][]int , operation string , stdscr goncurses.Window ) bool {
 
     ghost_height    := block_location[0]
     ghost_longitude := block_location[1]
@@ -178,7 +178,9 @@ func check_collisions( well_dimensions , block_location []int , tetronimo , debr
         case operation == "right" :
             ghost_longitude++
         case operation == "rotate" :
+            show_stats( stdscr , 10 , "top_second  " , ghost_tetro[0][1] ) // TESTING
             rotate_tetronimo( ghost_tetro )
+            show_stats( stdscr , 11 , "top_second  " , ghost_tetro[0][1] ) // TESTING
         case operation == "dropone" :
             ghost_height--
         case operation == "drop" :
@@ -192,7 +194,12 @@ func check_collisions( well_dimensions , block_location []int , tetronimo , debr
             t_bit_vert := ghost_height    - t_vert
             t_bit_horz := ghost_longitude + t_horz
 
-            if tetronimo[t_vert][t_horz] == 1 {
+            if t_vert == 0 { // TESTING
+                if t_horz == 1 {
+                    show_stats( stdscr , 12 , "one_bit  " , ghost_tetro[t_vert][t_horz] ) // TESTING
+                }
+            }
+            if ghost_tetro[t_vert][t_horz] == 1 {
                 if t_bit_horz < 0 {
                     return true
                 }
@@ -390,10 +397,10 @@ func rand_block( tetronimo [][]int , t_size int ) {
     }
 
     // define "O" block
-    tetronimo_set[0][0][0] = 1
-    tetronimo_set[0][0][1] = 1
-    tetronimo_set[0][1][0] = 1
     tetronimo_set[0][1][1] = 1
+    tetronimo_set[0][1][2] = 1
+    tetronimo_set[0][2][1] = 1
+    tetronimo_set[0][2][2] = 1
 
     // define "T" block
     tetronimo_set[1][0][0] = 1
@@ -425,11 +432,19 @@ func rand_block( tetronimo [][]int , t_size int ) {
     tetronimo_set[5][1][1] = 1
     tetronimo_set[5][2][0] = 1
 
+    // define "I" block - TESTING
+    tetronimo_set[6][0][0] = 1
+    tetronimo_set[6][1][0] = 1
+    tetronimo_set[6][2][0] = 1
+    tetronimo_set[6][3][0] = 1
+
+    /*
     // define "I" block
     tetronimo_set[6][0][1] = 1
     tetronimo_set[6][1][1] = 1
     tetronimo_set[6][2][1] = 1
     tetronimo_set[6][3][1] = 1
+    */
 
     rand.Seed(time.Now().Unix())
     rand_tetro := rand.Intn(set_count)
