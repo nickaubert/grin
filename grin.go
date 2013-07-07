@@ -37,17 +37,17 @@ func main() {
         debris_map[i] = debris_row
     }
 
-    // starting block location
+    // starting block
     block_location  := make( []int , 2 )
     new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map )
     show_stats( stdscr , 1 , "block height  " , block_location[0] )
-    // block_location[0] = well_dimensions[0] - 1 // block_height
-    // block_location[1] = well_dimensions[1] / 2 // block_longitude
 
     for keep_going := true ; keep_going == true ; {
 
         show_stats( stdscr , 1 , "block height  " , block_location[0] )
         show_stats( stdscr , 2 , "block longtude" , block_location[1] )
+        show_stats( stdscr , 4 , "deb len       " , len( debris_map ) )
+
 
         // keyboard input
         //  wait to drop time here?
@@ -279,8 +279,8 @@ func new_block( stdscr goncurses.Window , well_dimensions , block_location []int
     tetronimo[2][1] = 1
     */
 
-    // hardcode "L" block
-    // tetronimo[0][0] = 1
+    // hardcode "O" block
+    tetronimo[0][0] = 1
     tetronimo[0][1] = 1
     tetronimo[1][0] = 1
     tetronimo[1][1] = 1
@@ -296,7 +296,6 @@ func new_block( stdscr goncurses.Window , well_dimensions , block_location []int
                 debris_height := len( debris_map ) // testing
                 show_stats( stdscr , 13 , "debris_height" , debris_height  )
                 show_stats( stdscr , 14 , "debris_width" , len( debris_map[10])  )
-                */
                 show_stats( stdscr , 14 , "debris_height" , len(debris_map)  )
                 show_stats( stdscr , 15 , "debris_width_18" , len( debris_map[18])  )
                 show_stats( stdscr , 16 , "debris_width_19" , len( debris_map[19])  )
@@ -304,6 +303,7 @@ func new_block( stdscr goncurses.Window , well_dimensions , block_location []int
                 show_stats( stdscr , 18 , "t_bit_vert" , t_bit_vert  )
                 show_stats( stdscr , 19 , "t_bit_horz" , t_bit_horz  )
                 stdscr.GetChar()
+                */
                 if debris_map[t_bit_vert][t_bit_horz] == 1 {
                     return 2 // game over!
                 }
@@ -340,12 +340,12 @@ func draw_debris( stdscr goncurses.Window , well_dimensions []int , debris_map [
 func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr goncurses.Window ) {
 
     deb_height := len( debris_map )
-    // well_height := well_dimensions[0]
-    well_width  := well_dimensions[1]
+    well_width := well_dimensions[1]
 
     clear_rows := make( []int , deb_height )
-    do_refresh := false
 
+    // do_refresh := false
+    delete_rows := 0
     for d_vert := range debris_map {
         d_count := 0
         for d_horz := range debris_map[d_vert] {
@@ -354,54 +354,77 @@ func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr goncurse
             }
         }
         if d_count == well_width {
-            do_refresh = true
-            // clear_rows = append( clear_rows , d_vert )
-            show_stats( stdscr , 4 , "clear row" , d_vert  )
+            delete_rows++
             clear_rows[d_vert] = 1
         }
     }
 
     // return here if no clear rows
-    if do_refresh == false {
+    if delete_rows == 0 {
         return
     }
 
+    new_debris := make( [][]int , len(debris_map) )
+    new_rows := 0
+    for d_vert := range debris_map {
+        if clear_rows[d_vert] == 1 {
+            // do nothing
+        } else {
+            new_debris[new_rows] = debris_map[d_vert]
+            new_rows++
+        }
+    }
+
+    show_stats( stdscr , 7 , "ndeb len " , len(new_debris) )
+    for i := ( len(debris_map) - delete_rows ) ; i < len(debris_map) ; i++ {
+        // TODO: make sure array has length!
+        fresh_row := make( []int , well_width )
+        new_debris[i] = fresh_row
+        show_stats( stdscr , 7 , "adding to " , i )
+    }
+
+    for this_row := range new_debris {
+        debris_map[this_row] = new_debris[this_row]
+    }
+
+    for this_row := range debris_map {
+        offset_show  := 8
+        show_stats( stdscr , offset_show + this_row , "array len " , len( debris_map[this_row] )  )
+    }
+    stdscr.GetChar()
+
     /*
-    fresh_map := make( [][]int , deb_height )
-    for i := 0 ; i < deb_height ; i++ {
-        fresh_row := make([]int, well_width)
-        fresh_map[i] = fresh_row
+    for i := 0 ; i < delete_rows ; i++ {
+        for d_vert := range debris_map {
+            if clear_rows[d_vert] == 1 {
+                show_stats( stdscr , 5 , "old len " , len( debris_map)  )
+                debris_map = append(debris_map[:d_vert], debris_map[d_vert+1:]...)
+                // deleted_rows++
+                show_stats( stdscr , 6 , "deleting row" , d_vert  )
+                show_stats( stdscr , 7 , "new len " , len( debris_map)  )
+                stdscr.GetChar()
+            }
+        }
+        fresh_row := make( []int , well_width )
+        debris_map = append( debris_map , fresh_row )
     }
     */
 
+    /*
+    for i := 0 ; i < deleted_rows ; i++ {
+        fresh_row := make( []int , well_width )
+        debris_map = append( debris_map , fresh_row )
+    }
+    */
+
+    /* Manual Method
     down_rows := 0
-    // fresh_rowcount := 0
-    // for d_vert := 0 ; d_vert < len(debris_map) ; d_vert++ {
     for d_vert := range debris_map {
 
         if clear_rows[d_vert] == 1 {
-
             down_rows++
-            /*
-            // next_row := make( []int , well_width )
-            next_rownum := d_vert + down_rows
-            if next_rownum < ( len(debris_map) - 1 ) {
-                next_row = debris_map[next_rownum]
-            }
-            debris_map[d_vert] = next_row
-            debris_map = append(debris_map[:d_vert-1] , debris_map[d_vert+down_rows:]... )
-            */
-
-        // } else {
-
-            // fresh_map[fresh_rowcount] = debris_map[d_vert]
-            // fresh_rowcount++
-            /*
-            fresh_row := make( []int , well_width )
-            debris_map = append(debris_map[:d_vert-1] , debris_map[d_vert+down_rows:]... )
-            debris_map = append(debris_map , fresh_row)
-            */
-
+            show_stats( stdscr , 20 , "clearing row" , d_vert  )
+            stdscr.GetChar()
         }
 
         if ( d_vert + down_rows ) <= ( len( debris_map ) - 1 ) {
@@ -411,44 +434,6 @@ func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr goncurse
             debris_map[d_vert] = fresh_row
         }
 
-    }
-
-    // need to insert fresh rows at top of map
-        /*
-        // append new rows
-        for i := 0 ; i < down_rows ; i++ {
-            fresh_row := make( []int , well_width )
-            debris_map[
-        }
-        */
-
-        // show_stats( stdscr , 5 , "downn_rows" , down_rows  )
-
-        // show_stats( stdscr , 9  , "debris_height" , len( debris_map )  )
-        // show_stats( stdscr , 10 , "debris_width"  , len( debris_map[10])  )
-
-
-
-        // show_stats( stdscr , 11  , "debris_height" , len( debris_map )  )
-        // show_stats( stdscr , 12 , "debris_width"  , len( debris_map[10])  )
-        // show_stats( stdscr , 13 , "check_height"  , d_vert  )
-        // stdscr.GetChar()
-
-        // show_stats( stdscr , 6 , "nextnum" , next_rownum  )
-        // stdscr.GetChar()
-        // next_row := debris_map[next_rownum]
-        // debris_map[w_vert] = next_row
-
-    // debris_map = fresh_map
-    /*
-    for i := range fresh_map {
-        //  next_row := make( []int , well_width )
-        show_stats( stdscr , 20 , "current map"  , len( fresh_map )  )
-        // show_stats( stdscr , 21 , "new_dwidth"  , len( next_row )  )
-        // debris_map = append( debris_map , next_row )
-            show_stats( stdscr , 22 , "this drow"  , i  )
-            show_stats( stdscr , 23 , "row len  "  , len( fresh_map[i] )  )
-            stdscr.GetChar()
     }
     */
 
