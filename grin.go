@@ -16,13 +16,14 @@ func main() {
 
     // curses colors
     gc.StartColor()
-    gc.InitPair(1, gc.C_BLACK, gc.C_RED)
-    gc.InitPair(2, gc.C_BLACK, gc.C_GREEN)
-    gc.InitPair(3, gc.C_BLACK, gc.C_BLUE)
-    gc.InitPair(4, gc.C_BLACK, gc.C_CYAN)
-    gc.InitPair(5, gc.C_BLACK, gc.C_MAGENTA)
-    gc.InitPair(6, gc.C_BLACK, gc.C_WHITE)
-    gc.InitPair(7, gc.C_BLACK, gc.C_YELLOW)
+    gc.InitPair(1, gc.C_BLACK, gc.C_BLUE)
+    gc.InitPair(2, gc.C_BLACK, gc.C_YELLOW)
+    gc.InitPair(3, gc.C_BLACK, gc.C_MAGENTA)
+    gc.InitPair(4, gc.C_BLACK, gc.C_WHITE)
+    gc.InitPair(5, gc.C_BLACK, gc.C_GREEN)
+    gc.InitPair(6, gc.C_BLACK, gc.C_CYAN)
+    gc.InitPair(7, gc.C_BLACK, gc.C_RED)
+    gc.InitPair(8, gc.C_BLACK, gc.C_BLACK)
 
     // define well
     well_depth    := 20
@@ -52,7 +53,7 @@ func main() {
 
     // starting block
     block_location  := make( []int , 2 )
-    new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map , t_size )
+    block_id := new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map , t_size )
 
     // keyboard channel
     ck := make(chan int )
@@ -99,7 +100,7 @@ func main() {
         }
 
         // move block 
-        block_status := move_block( stdscr , well_dimensions , block_location , movement , tetronimo , debris_map )
+        block_status := move_block( stdscr , well_dimensions , block_location , movement , block_id , tetronimo , debris_map )
 
         // new block?
         if block_status == 2 {
@@ -111,14 +112,15 @@ func main() {
                     t_bit_vert := block_height    - t_vert
                     t_bit_horz := block_longitude + t_horz
                     if tetronimo[t_vert][t_horz] == 1 {
-                        debris_map[t_bit_vert][t_bit_horz] = 1
+                        debris_map[t_bit_vert][t_bit_horz] = block_id + 1
                     }
                 }
             }
 
             clear_debris( well_dimensions , debris_map , stdscr )
-            nb_ret := new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map , t_size )
-            if nb_ret == 2 {
+            // nb_ret := new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map , t_size )
+            block_id = new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map , t_size )
+            if block_id == 8 {
                 keep_going = false
             }
         }
@@ -140,7 +142,7 @@ func show_stats( stdscr gc.Window , height int , show_text string , show_val int
 
 }
 
-func move_block( stdscr gc.Window , well_dimensions , block_location []int , operation string , tetronimo , debris_map [][]int) int {
+func move_block( stdscr gc.Window , well_dimensions , block_location []int , operation string , block_id int , tetronimo , debris_map [][]int) int {
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
@@ -155,7 +157,7 @@ func move_block( stdscr gc.Window , well_dimensions , block_location []int , ope
         }
     }
 
-    draw_block( stdscr , well_dimensions , "erase" , block_location , tetronimo )
+    draw_block( stdscr , well_dimensions , "erase" , block_location , tetronimo , block_id )
 
     retstat := 0
     switch {
@@ -175,7 +177,7 @@ func move_block( stdscr gc.Window , well_dimensions , block_location []int , ope
     block_location[0] = block_height
     block_location[1] = block_longitude
 
-    draw_block( stdscr , well_dimensions , "draw" , block_location , tetronimo )
+    draw_block( stdscr , well_dimensions , "draw" , block_location , tetronimo , block_id )
 
     return retstat
 
@@ -225,7 +227,7 @@ func check_collisions( well_dimensions , block_location []int , tetronimo , debr
                 if t_bit_vert < 0 {
                     return true
                 }
-                if debris_map[t_bit_vert][t_bit_horz] == 1 {
+                if debris_map[t_bit_vert][t_bit_horz] > 0 {
                     return true
                 }
             }
@@ -241,7 +243,7 @@ func sound_depth( block_location []int , debris_map [][]int ) int {
     block_longitude := block_location[1]
 
     for i := block_height ; i > 0  ; i-- {
-        if debris_map[i][block_longitude] == 1 {
+        if debris_map[i][block_longitude] > 0 {
             return i + 1
         }
     }
@@ -249,14 +251,19 @@ func sound_depth( block_location []int , debris_map [][]int ) int {
     return 0
 }
 
-func draw_block( stdscr gc.Window , well_dimensions []int , operation string , block_location []int , tetronimo [][]int ) {
+func draw_block( stdscr gc.Window , well_dimensions []int , operation string , block_location []int , tetronimo [][]int , block_id int ) {
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
 
-    block_paint := "XX"
+    block_paint := "  "
+    // color := 2
+    color := block_id + 1
+
+    show_stats( stdscr , 6 , "block_id    " , block_id )
+
     if operation == "erase" {
-        block_paint = "  "
+        color = 8
     }
 
     _, term_col := stdscr.Maxyx()
@@ -266,7 +273,9 @@ func draw_block( stdscr gc.Window , well_dimensions []int , operation string , b
     for t_vert := range tetronimo {
         for t_horz := range tetronimo[t_vert] {
             if tetronimo[t_vert][t_horz] == 1 {
+                stdscr.ColorOn(byte(color))
                 stdscr.MovePrint( ( well_bottom - block_height + t_vert ) , ( well_left + ( block_longitude * 2 ) + ( t_horz * 2 ) )  , block_paint )
+                stdscr.ColorOff(byte(color))
             }
         }
     }
@@ -292,17 +301,7 @@ func draw_border( stdscr gc.Window , well_dimensions []int ) {
 
         stdscr.MovePrint( row_height , well_right , "| " )
 
-        color := 3
-        stdscr.ColorOn(byte(color))
-        stdscr.MovePrint( row_height , well_left  , " |" , color )
-        // stdscr.AddChar( gc.ACS_DIAMOND )
-        stdscr.ColorOff(byte(color))
-
-        // stdscr.MovePrint( row_height , well_left  , " |" )
-
-        // stdscr.MovePrint( row_height , well_left  , " " )
-        // stdscr.AddChar( ACS_DIAMOND | A_REVERSE )
-        // stdscr.AddChar( gc.ACS_DIAMOND )
+        stdscr.MovePrint( row_height , well_left  , " |" )
 
     }
 
@@ -320,7 +319,7 @@ func new_block( stdscr gc.Window , well_dimensions , block_location []int , tetr
     block_location[1] = well_dimensions[1] / 2 // block_longitude
 
     // show_stats( stdscr , 8 , "random" , rand_tetro )
-    rand_block( tetronimo , t_size )
+    block_id := rand_block( tetronimo , t_size )
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
@@ -329,8 +328,8 @@ func new_block( stdscr gc.Window , well_dimensions , block_location []int , tetr
             t_bit_vert := block_height    - t_vert
             t_bit_horz := block_longitude + t_horz
             if tetronimo[t_vert][t_horz] == 1 {
-                if debris_map[t_bit_vert][t_bit_horz] == 1 {
-                    return 2 // game over!
+                if debris_map[t_bit_vert][t_bit_horz] > 0 {
+                    return 8 // game over!
                 }
             }
         }
@@ -338,7 +337,7 @@ func new_block( stdscr gc.Window , well_dimensions , block_location []int , tetr
 
     draw_debris( stdscr , well_dimensions , debris_map )
 
-    return 0
+    return block_id
 }
 
 func draw_debris( stdscr gc.Window , well_dimensions []int , debris_map [][]int ) {
@@ -351,8 +350,12 @@ func draw_debris( stdscr gc.Window , well_dimensions []int , debris_map [][]int 
         for col := range debris_map[row] {
             row_loc := vert_headroom + well_dimensions[0] - row
             col_loc := ( ( term_col / 2 ) - well_dimensions[1] ) + ( col * 2 )
-            if debris_map[row][col] == 1 {
-                stdscr.MovePrint( row_loc , col_loc  , "DD" )
+            if debris_map[row][col] > 0 {
+                color := debris_map[row][col]
+                // stdscr.MovePrint( row_loc , col_loc  , "DD" )
+                stdscr.ColorOn(byte(color))
+                stdscr.MovePrint( row_loc , col_loc  , "  " )
+                stdscr.ColorOff(byte(color))
             } else {
                 stdscr.MovePrint( row_loc , col_loc  , "  " )
             }
@@ -374,7 +377,7 @@ func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr gc.Windo
     for d_vert := range debris_map {
         d_count := 0
         for d_horz := range debris_map[d_vert] {
-            if debris_map[d_vert][d_horz] == 1 {
+            if debris_map[d_vert][d_horz] > 0 {
                 d_count++
             }
         }
@@ -411,7 +414,7 @@ func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr gc.Windo
 
 }
 
-func rand_block( tetronimo [][]int , t_size int ) {
+func rand_block( tetronimo [][]int , t_size int ) int {
 
     set_count := 7
 
@@ -475,6 +478,8 @@ func rand_block( tetronimo [][]int , t_size int ) {
             tetronimo[row][col] = tetronimo_set[rand_tetro][row][col]
         }
     }
+
+    return rand_tetro
 
 }
 
