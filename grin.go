@@ -11,7 +11,6 @@ import gc "code.google.com/p/goncurses"
 
 /*
 	TODO:
-		Fix rotate: when rotate, move top left of grid
 		Hard drop
 		Keep score, stats
 		Speedup
@@ -20,6 +19,8 @@ import gc "code.google.com/p/goncurses"
 		Adjustible well size and tetronimo set
 		Random debris map at start
 		Two players?
+	Done!
+		Fix rotate: when rotate, move top left of grid
 */
 
 func main() {
@@ -81,15 +82,14 @@ func main() {
 	for keep_going := true; keep_going == true; {
 
 		var somechar int
-		hithere := 0
+		// hithere := 0
 		select {
 		case somechar = <-ck:
 			go keys_in(stdscr, ck)
 		case somechar = <-ct:
 			go t_timer(ct)
-			hithere = 1
+			// hithere = 1
 		}
-		show_stats(stdscr, 2, "hithere    ", hithere)
 
 		movement := "hold"
 		switch {
@@ -104,10 +104,11 @@ func main() {
 		case somechar == 107: // k
 			movement = "rotate"
 		case somechar == 32: // [space]
-			movement = "drop"
+			movement = "harddrop"
 		case somechar == 200: // TESTING
-			show_stats(stdscr, 9, "drop    ", somechar)
 		}
+		show_stats(stdscr, 2,  "somechar    ", somechar)
+		stdscr.MovePrint(21, 1, movement)
 
 		if keep_going == false {
 			break
@@ -160,6 +161,7 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 
 	// blocked := false // TESTING
 	blocked := check_collisions(well_dimensions, block_location, tetronimo, debris_map, operation, stdscr)
+	stdscr.MovePrint(22, 1, operation)
 
 	if blocked == true {
 		if operation == "dropone" {
@@ -181,8 +183,10 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 		rotate_tetronimo(tetronimo, stdscr)
 	case operation == "dropone":
 		block_height--
-	case operation == "drop":
-		block_height = sound_depth(block_location, debris_map)
+	case operation == "harddrop":
+		block_height = sound_depth(block_location, tetronimo, debris_map , stdscr , well_dimensions )
+		show_stats(stdscr, 20, "block_height  ", block_height)
+		// block_height = 4 // TESTING
 		retstat = 2
 	}
 
@@ -218,9 +222,9 @@ func check_collisions(well_dimensions, block_location []int, tetronimo, debris_m
 		rotate_tetronimo(ghost_tetro,stdscr)
 	case operation == "dropone":
 		ghost_height--
-	case operation == "drop":
-		ghost_height = sound_depth(block_location, debris_map)
-		// retstat = 2
+	case operation == "harddrop":
+		// ghost_height = sound_depth(block_location, tetronimo, debris_map)
+		return false
 	}
 
 	for t_vert := range ghost_tetro {
@@ -249,18 +253,23 @@ func check_collisions(well_dimensions, block_location []int, tetronimo, debris_m
 	return false
 }
 
-func sound_depth(block_location []int, debris_map [][]int) int {
+func sound_depth(block_location []int, tetronimo, debris_map [][]int , stdscr gc.Window , well_dimensions []int) int {
 
 	block_height := block_location[0]
 	block_longitude := block_location[1]
 
-	for i := block_height; i > 0; i-- {
-		if debris_map[i][block_longitude] > 0 {
-			return i + 1
+	// max_height := 0
+	for ghost_height := block_height ; ghost_height >=0 ; ghost_height-- {
+		ghost_location := []int{ghost_height,block_longitude}
+		blocked := check_collisions(well_dimensions, ghost_location, tetronimo, debris_map, "dropone", stdscr)
+		if blocked == true {
+			return ghost_height
 		}
 	}
 
-	return 0
+	// this shouldn't happen!
+	return block_height
+
 }
 
 func draw_block(stdscr gc.Window, well_dimensions []int, operation string, block_location []int, tetronimo [][]int ) {
@@ -580,7 +589,7 @@ func keys_in(stdscr gc.Window, ck chan int) {
 }
 
 func t_timer(ct chan int) {
-	// time.Sleep(1000 * time.Millisecond)
-	time.Sleep(100000 * time.Second)
+	time.Sleep(1000 * time.Millisecond)
+	// time.Sleep(100000 * time.Second)
 	ct <- 110
 }
