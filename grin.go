@@ -7,48 +7,60 @@ import "fmt"
 
 func main() {
 
+    // curses
 	stdscr, _ := goncurses.Init()
 	defer goncurses.End()
 
-    well_depth := 20
-    well_width := 10
+    // define well
+    well_dimensions := make( []int , 3 )
+    well_dimensions[0] = 20 // well_depth
+    well_dimensions[1] = 10 // well_width
+    well_dimensions[2] = 5  // vert_headroom
 
-    block_height    := well_depth
-    block_longitude := ( well_width / 2 )
+    // starting block location
+    block_location  := make( []int , 2 )
+    block_location[0] = well_dimensions[0]     // block_height
+    block_location[1] = well_dimensions[1] / 2 // block_longitude
 
-    well_border := define_well( well_width , well_depth )
-
-    draw_well( well_border , stdscr )
+    draw_border( stdscr , well_dimensions )
 
     for keep_going := true ; keep_going == true ; {
 
-        show_stats( stdscr , block_height )
+        show_stats( stdscr , block_location[0] )
 
         // keyboard input
+        //  wait to drop time here?
         somechar := stdscr.GetChar()
-        movement := "hold"
-        switch {
-            case somechar == 113:
-                keep_going = false
-            case somechar == 106 :
-                movement = "left"
-            case somechar == 108 :
-                movement = "right"
-            case somechar == 32 :
-                movement = "drop"
-        }
         string_status := fmt.Sprintf( "string: %03d" , somechar )
         stdscr.MovePrint( 3 , 3  , string_status ) // TESTING
 
-        // erase old block
-        draw_block( stdscr , well_border , "erase" , block_height , block_longitude )
+        // process input
+        movement := "hold"
+        switch {
+            case somechar == 113 : // q
+                keep_going = false
+            case somechar == 106 : // j
+                movement = "left"
+            case somechar == 108 : // l
+                movement = "right"
+            case somechar == 110 : // n
+                movement = "dropone"
+            case somechar == 32 :  // [space]
+                movement = "drop"
+        }
+
+        if keep_going == false {
+            break
+        }
 
         // move block 
-        block_height--
-        block_height , block_longitude = move_block( well_border , movement  , block_height , block_longitude )
+        block_status := move_block( stdscr , well_dimensions , movement , block_location )
 
-        // draw new block
-        keep_going = draw_block( stdscr , well_border , "draw" , block_height , block_longitude )
+        // new block?
+        if block_status == 2 {
+            new_block( well_dimensions , block_location )
+        }
+
 
     }
 
@@ -56,14 +68,6 @@ func main() {
 
 }
 
-func define_well( well_width , well_depth int ) [][]byte {
-    well := make([][]byte, well_depth)
-    for i := 0 ; i < well_depth ; i++ {
-        well_row := make([]byte, well_width)
-        well[i] = well_row
-    }
-    return well
-}
 
 func show_stats( stdscr goncurses.Window , block_height int ) {
 
@@ -72,41 +76,83 @@ func show_stats( stdscr goncurses.Window , block_height int ) {
 
 }
 
-func move_block( this_well [][]byte , operation string , block_height , block_longitude int ) ( int , int ) {
+func move_block( stdscr goncurses.Window , well_dimensions [] int , operation string , block_location []int ) int {
 
-    well_width  := len(this_well[1])
+    block_height    := block_location[0]
+    block_longitude := block_location[1]
+
+    blocked := check_collisions( well_dimensions , block_location , operation )
+
+    if blocked == true {
+        if operation == "dropone" {
+            return 2
+        } else {
+            return 1
+        }
+    }
+
+    draw_block( stdscr , well_dimensions , "erase" , block_location )
 
     switch {
         case operation == "left" :
-            if block_longitude > 1 {
-                block_longitude--
-            }
+            block_longitude--
         case operation == "right" :
-            if block_longitude < ( well_width - 1 ) {
-                block_longitude++
-            }
+            block_longitude++
+        case operation == "dropone" :
+            block_height--
         case operation == "drop" :
-            block_height = 0 // need collision detection here
+            block_height = 1
     }
-    return block_height , block_longitude
+
+    block_location[0] = block_height
+    block_location[1] = block_longitude
+
+    draw_block( stdscr , well_dimensions , "draw" , block_location )
+
+    return 0
+
 }
 
-func draw_block( stdscr goncurses.Window , this_well [][]byte , operation string , block_height , block_longitude int ) bool {
+func check_collisions( well_dimensions , block_location []int , operation string ) bool {
+
+    blocked := false
+    switch {
+        case operation == "left" :
+            if block_location[1] == 1 {
+                blocked = true
+            }
+        case operation == "right" :
+            if block_location[1] == ( well_dimensions[1] - 1 ) {
+                blocked = true
+            }
+        case operation == "dropone" :
+            if block_location[0] == 1 {
+                blocked = true
+            }
+        case operation == "drop" :
+            blocked = false // nothing to do here yet
+    }
+
+    return blocked
+}
+
+func draw_block( stdscr goncurses.Window , well_dimensions []int , operation string , block_location []int ) bool {
 
     // terminal size
     // term_row, term_col := stdscr.Maxyx()
     _, term_col := stdscr.Maxyx()
 
-    well_top    := 5
-    well_height := len(this_well)
-    well_width  := len(this_well[1])
-    well_left   := ( ( term_col / 2 ) - well_width )
+    // well_top    := 5
+    well_left   := ( ( term_col / 2 ) - well_dimensions[1] )
+
+    block_height    := block_location[0]
+    block_longitude := block_location[1]
 
     block_paint := "XX"
     if operation == "erase" {
         block_paint = "  "
     }
-    stdscr.MovePrint( ( well_top + well_height - block_height ) , ( well_left + ( block_longitude * 2 ) )  , block_paint )
+    stdscr.MovePrint( ( well_dimensions[2] + well_dimensions[0] - block_height ) , ( well_left + ( block_longitude * 2 ) )  , block_paint )
 
     if block_height == 0 {
         return false
@@ -115,25 +161,24 @@ func draw_block( stdscr goncurses.Window , this_well [][]byte , operation string
 
 }
 
-
-func draw_well( this_well [][]byte , stdscr goncurses.Window  ) {
+func draw_border( stdscr goncurses.Window , well_dimensions []int ) {
 
     // terminal size
     // term_row, term_col := stdscr.Maxyx()
     _, term_col := stdscr.Maxyx()
 
-    // sides
-    well_height := len(this_well)
-    well_width  := len(this_well[1])
+    well_depth    := well_dimensions[0]
+    well_width    := well_dimensions[1]
+    vert_headroom := well_dimensions[2]
+
     well_left   := ( ( term_col / 2 ) - well_width )
     well_right  := ( well_left + ( well_width * 2 ) )
-    well_top    := 5
-    well_bottom := ( well_top + well_height )
+    well_bottom := ( vert_headroom + well_depth )
 
     // draw sides
-    for row_height := well_top ; row_height < well_bottom ; row_height ++ {
+    for row_height := vert_headroom ; row_height < well_bottom ; row_height ++ {
         stdscr.MovePrint( row_height , well_left  , " |" )
-        stdscr.MovePrint( row_height , well_right ,  "|" )
+        stdscr.MovePrint( row_height , well_right , "| " )
     }
 
     for col_loc := well_left ; col_loc <= well_right ; col_loc ++ {
@@ -142,5 +187,10 @@ func draw_well( this_well [][]byte , stdscr goncurses.Window  ) {
 
     stdscr.Refresh()
 
+}
+
+func new_block( well_dimensions , block_location []int ) {
+    block_location[0] = well_dimensions[0]     // block_height
+    block_location[1] = well_dimensions[1] / 2 // block_longitude
 }
 
