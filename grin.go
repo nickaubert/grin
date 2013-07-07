@@ -158,6 +158,7 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 	block_height := block_location[0]
 	block_longitude := block_location[1]
 
+	// blocked := false // TESTING
 	blocked := check_collisions(well_dimensions, block_location, tetronimo, debris_map, operation, stdscr)
 
 	if blocked == true {
@@ -177,7 +178,7 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 	case operation == "right":
 		block_longitude++
 	case operation == "rotate":
-		rotate_tetronimo(tetronimo)
+		rotate_tetronimo(tetronimo, stdscr)
 	case operation == "dropone":
 		block_height--
 	case operation == "drop":
@@ -214,7 +215,7 @@ func check_collisions(well_dimensions, block_location []int, tetronimo, debris_m
 	case operation == "right":
 		ghost_longitude++
 	case operation == "rotate":
-		rotate_tetronimo(ghost_tetro)
+		rotate_tetronimo(ghost_tetro,stdscr)
 	case operation == "dropone":
 		ghost_height--
 	case operation == "drop":
@@ -441,43 +442,43 @@ func rand_block(tetronimo [][]int, t_size int, stdscr gc.Window) {
 	// there is no tetronimo_set[0]
 
 	// define "O" block
-	tetronimo_set[1][1][1] = 1
+	tetronimo_set[1][1][1] = 2
 	tetronimo_set[1][1][2] = 1
 	tetronimo_set[1][2][1] = 1
 	tetronimo_set[1][2][2] = 1
 
 	// define "T" block
-	tetronimo_set[2][0][0] = 2
+	tetronimo_set[2][0][0] = 3
 	tetronimo_set[2][0][1] = 2
 	tetronimo_set[2][0][2] = 2
 	tetronimo_set[2][1][1] = 2
 
 	// define "L" block
-	tetronimo_set[3][0][0] = 3
+	tetronimo_set[3][0][0] = 4
 	tetronimo_set[3][1][0] = 3
 	tetronimo_set[3][2][0] = 3
 	tetronimo_set[3][2][1] = 3
 
 	// define "J" block
-	tetronimo_set[4][0][1] = 4
+	tetronimo_set[4][0][1] = 5
 	tetronimo_set[4][1][1] = 4
 	tetronimo_set[4][2][0] = 4
 	tetronimo_set[4][2][1] = 4
 
 	// define "S" block
-	tetronimo_set[5][0][0] = 5
+	tetronimo_set[5][0][0] = 6
 	tetronimo_set[5][1][0] = 5
 	tetronimo_set[5][1][1] = 5
 	tetronimo_set[5][2][1] = 5
 
 	// define "Z" block
-	tetronimo_set[6][0][1] = 6
+	tetronimo_set[6][0][1] = 7
 	tetronimo_set[6][1][0] = 6
 	tetronimo_set[6][1][1] = 6
 	tetronimo_set[6][2][0] = 6
 
 	// define "I" block
-	tetronimo_set[7][0][1] = 7
+	tetronimo_set[7][0][1] = 1
 	tetronimo_set[7][1][1] = 7
 	tetronimo_set[7][2][1] = 7
 	tetronimo_set[7][3][1] = 7
@@ -496,7 +497,7 @@ func rand_block(tetronimo [][]int, t_size int, stdscr gc.Window) {
 
 }
 
-func rotate_tetronimo(tetronimo [][]int) {
+func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
 
 	// hold_tetro is a clone of tetronimo
 	hold_tetro := make([][]int, len(tetronimo))
@@ -508,12 +509,45 @@ func rotate_tetronimo(tetronimo [][]int) {
 		}
 	}
 
+	// hold_tetro := append( SliceType{} , tetronimo )
+	// hold_tetro := make([][]int, len(tetronimo))
+	// copy(hold_tetro, tetronimo)
+
 	// rotate
+	tl_tetro := make([][]int, len(tetronimo))
 	for row := range hold_tetro {
+		tetro_row := make([]int, len(tetronimo[0]))
+		tl_tetro[row] = tetro_row
 		rotated_col := ( len( hold_tetro ) - 1 ) - row
 		for col := range hold_tetro[row] {
 			rotated_row := col
-			tetronimo[row][col] = hold_tetro[rotated_row][rotated_col]
+			tl_tetro[row][col] = hold_tetro[rotated_row][rotated_col]
+		}
+	}
+
+	// move to top left corner of grid
+	r_offset := 0
+	// c_offset := 0
+	for row := range tl_tetro {
+		row_sum := 0
+		for col , col_val := range tl_tetro[row] {
+			// tetronimo[row][col] = tl_tetro[row][col]
+			show_stats(stdscr, 15, "row  ", row)
+			show_stats(stdscr, 16, "col  ", col)
+			show_stats(stdscr, 17, "val  ", col_val)
+			// stdscr.GetChar()
+			row_sum += col_val
+		}
+		if row_sum == 0 {
+			r_offset += 1
+		}
+	}
+
+	for row := range tl_tetro {
+		if ( row - r_offset ) >= 0 {
+			for col := range tl_tetro[row] {
+				tetronimo[row - r_offset][col] = tl_tetro[row][col]
+			}
 		}
 	}
 
