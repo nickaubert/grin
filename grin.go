@@ -6,6 +6,7 @@ import "code.google.com/p/goncurses"
 import "fmt"
 import "math/rand"
 import "time"
+import "runtime"
 
 func main() {
 
@@ -44,18 +45,74 @@ func main() {
     new_block( stdscr , well_dimensions , block_location , tetronimo , debris_map , t_size )
     show_stats( stdscr , 1 , "block height  " , block_location[0] )
 
+    // keyboard channel
+    // ck := make(chan int )
+
+    // timer channel
+    ct := make(chan int )
+    ck := make(chan int )
+
+    go keys_in( stdscr , ck )
+    // go t_timer ( ct , stdscr )
+    go t_timer ( ct )
+    hicounter := 0  // TESTING
+
     for keep_going := true ; keep_going == true ; {
 
         show_stats( stdscr , 1 , "block height  " , block_location[0] )
         show_stats( stdscr , 2 , "block longtude" , block_location[1] )
         show_stats( stdscr , 4 , "deb len       " , len( debris_map ) )
-
+        show_stats( stdscr , 6 , "goroutines    " , runtime.NumGoroutine() )
 
         // keyboard input
         //  wait to drop time here?
-        somechar := stdscr.GetChar()
-        string_status := fmt.Sprintf( "string: %03d" , somechar )
-        stdscr.MovePrint( 3 , 3  , string_status ) // TESTING
+        // somechar := stdscr.GetChar()
+
+        // go t_timer ( ct , stdscr )
+        // go keys_in( stdscr , ck )
+
+        dodrop := 0
+        var somechar int
+        select {
+            // case somechar = <-ct:
+        case somechar = <-ck:
+            go keys_in( stdscr , ck )
+        case somechar = <-ct:
+            // case <-time.After(time.Second * 1):
+                // go t_timer ( ct , stdscr )
+            go t_timer ( ct )
+                somechar = 110
+                hicounter++
+                show_stats( stdscr ,  7 , "hithere   " , hicounter )
+                dodrop = 1
+                show_stats( stdscr , 10 , "dodrop in " , dodrop )
+                // fmt.Println("timeout 1")
+            // default:
+        }
+        show_stats( stdscr , 11 , "dodrop out  " , dodrop )
+        show_stats( stdscr ,  8 , "fellthrough " , hicounter )
+
+        // close(ct)
+        // close(ck)
+
+        // works at first, but then game speeds up because t_timers pile up?
+        // go t_timer ( ct , stdscr )
+
+        /*
+        select {
+            case somechar = <-ct:
+            case somechar = <-ct:
+        }
+        */
+        // somechar := <- ct
+
+        // close( ci )
+
+        // keychar := int(somechar)
+        // show_stats( stdscr , 10 , "keychar " , keychar )
+
+        // string_status := fmt.Sprintf( "string: %03d" , somechar )
+        // stdscr.MovePrint( 3 , 3  , string_status ) // TESTING
 
         // process input
         movement := "hold"
@@ -72,11 +129,15 @@ func main() {
                 movement = "rotate"
             case somechar == 32 :  // [space]
                 movement = "drop"
+            case somechar == 200 :  // TESTING
+                show_stats( stdscr , 9 , "drop    " , somechar )
         }
 
         if keep_going == false {
             break
         }
+
+        show_stats( stdscr , 12 , "dodrop    " , dodrop )
 
         // move block 
         block_status := move_block( stdscr , well_dimensions , block_location , movement , tetronimo , debris_map )
@@ -178,9 +239,7 @@ func check_collisions( well_dimensions , block_location []int , tetronimo , debr
         case operation == "right" :
             ghost_longitude++
         case operation == "rotate" :
-            show_stats( stdscr , 10 , "top_second  " , ghost_tetro[0][1] ) // TESTING
             rotate_tetronimo( ghost_tetro )
-            show_stats( stdscr , 11 , "top_second  " , ghost_tetro[0][1] ) // TESTING
         case operation == "dropone" :
             ghost_height--
         case operation == "drop" :
@@ -194,11 +253,6 @@ func check_collisions( well_dimensions , block_location []int , tetronimo , debr
             t_bit_vert := ghost_height    - t_vert
             t_bit_horz := ghost_longitude + t_horz
 
-            if t_vert == 0 { // TESTING
-                if t_horz == 1 {
-                    show_stats( stdscr , 12 , "one_bit  " , ghost_tetro[t_vert][t_horz] ) // TESTING
-                }
-            }
             if ghost_tetro[t_vert][t_horz] == 1 {
                 if t_bit_horz < 0 {
                     return true
@@ -432,19 +486,11 @@ func rand_block( tetronimo [][]int , t_size int ) {
     tetronimo_set[5][1][1] = 1
     tetronimo_set[5][2][0] = 1
 
-    // define "I" block - TESTING
-    tetronimo_set[6][0][0] = 1
-    tetronimo_set[6][1][0] = 1
-    tetronimo_set[6][2][0] = 1
-    tetronimo_set[6][3][0] = 1
-
-    /*
     // define "I" block
     tetronimo_set[6][0][1] = 1
     tetronimo_set[6][1][1] = 1
     tetronimo_set[6][2][1] = 1
     tetronimo_set[6][3][1] = 1
-    */
 
     rand.Seed(time.Now().Unix())
     rand_tetro := rand.Intn(set_count)
@@ -486,4 +532,22 @@ func rotate_tetronimo ( tetronimo [][]int ) {
     tetronimo[3][2] = hold_tetro[2][0]
     tetronimo[3][3] = hold_tetro[3][0]
 
+}
+
+func keys_in ( stdscr goncurses.Window , ck chan int ) {
+
+    somechar := int( stdscr.GetChar() )
+        // keychar := int(somechar)
+
+    ck <- somechar
+    return
+
+}
+
+// func t_timer ( ct chan int , stdscr goncurses.Window ) {
+func t_timer ( ct chan int ) {
+    // show_stats( stdscr , 11 , "time  " , int(time.Second) )
+    time.Sleep(1000 * time.Millisecond)
+    ct <- 110
+    return
 }
