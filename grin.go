@@ -11,8 +11,12 @@ import gc "code.google.com/p/goncurses"
 
 /*
 	TODO:
-		Hard drop
+		Screen cleanup
 		Keep score, stats
+			Tint:
+				1 point per level for each tetronimo
+				1 point per level for each distance dropped
+				0 points for clearing rows
 		Speedup
 		Print score, stats on exit
 	Improvements:
@@ -21,6 +25,8 @@ import gc "code.google.com/p/goncurses"
 		Two players?
 	Done!
 		Fix rotate: when rotate, move top left of grid
+		Hard drop
+		Draw well
 */
 
 func main() {
@@ -159,7 +165,6 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 	block_height := block_location[0]
 	block_longitude := block_location[1]
 
-	// blocked := false // TESTING
 	blocked := check_collisions(well_dimensions, block_location, tetronimo, debris_map, operation, stdscr)
 	stdscr.MovePrint(22, 1, operation)
 
@@ -186,7 +191,6 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 	case operation == "harddrop":
 		block_height = sound_depth(block_location, tetronimo, debris_map , stdscr , well_dimensions )
 		show_stats(stdscr, 20, "block_height  ", block_height)
-		// block_height = 4 // TESTING
 		retstat = 2
 	}
 
@@ -316,15 +320,31 @@ func draw_border(stdscr gc.Window, well_dimensions []int) {
 	// draw sides
 	for row_height := vert_headroom; row_height < well_bottom; row_height++ {
 
-		stdscr.MovePrint(row_height, well_right, "| ")
+		// stdscr.MovePrint(row_height, well_right, "| ")
+		stdscr.MovePrint(row_height, well_right, "" )
+		stdscr.AddChar( 4194424 )
+		// 4194410 bottom right corner
+		// 4194413 bottom left corner
+		// 4194415 - 19 horizontal lines
+		// 4194424 vertical line
 
-		stdscr.MovePrint(row_height, well_left, " |")
+		// stdscr.MovePrint(row_height, well_left, " |")
+		stdscr.MovePrint(row_height, well_left, " ")
+		stdscr.AddChar( 4194424 )
 
 	}
 
-	for col_loc := (well_left + 1); col_loc <= well_right; col_loc++ {
-		stdscr.MovePrint(well_bottom, col_loc, "=")
+	for col_loc := (well_left + 2); col_loc < well_right; col_loc++ {
+		// stdscr.MovePrint(well_bottom, col_loc, "=")
+		stdscr.MovePrint(well_bottom, col_loc, "")
+		stdscr.AddChar( 4194417 )
 	}
+
+	stdscr.MovePrint(well_bottom, well_left + 1, "")
+	stdscr.AddChar( 4194413 )
+
+	stdscr.MovePrint(well_bottom, well_right, "")
+	stdscr.AddChar( 4194410 )
 
 	stdscr.Refresh()
 
