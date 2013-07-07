@@ -4,6 +4,8 @@ package main
 
 import "code.google.com/p/goncurses"
 import "fmt"
+import "math/rand"
+import "time"
 
 func main() {
 
@@ -23,7 +25,7 @@ func main() {
     draw_border( stdscr , well_dimensions )
 
     // tetromino
-    t_size := 3
+    t_size := 4
     tetronimo := make( [][]int , t_size )
     for i := 0 ; i < t_size ; i++ {
         tetro_row := make([]int, t_size)
@@ -264,26 +266,11 @@ func draw_border( stdscr goncurses.Window , well_dimensions []int ) {
 
 func new_block( stdscr goncurses.Window , well_dimensions , block_location []int , tetronimo , debris_map [][]int ) int {
 
-    // show_stats( stdscr , 2 , "block ending loc" , block_location[1] )
-    // stdscr.GetChar()
-
     block_location[0] = well_dimensions[0] - 1 // block_height
     block_location[1] = well_dimensions[1] / 2 // block_longitude
 
-    /*
-    // hardcode "+" block
-    tetronimo[0][1] = 1
-    tetronimo[1][0] = 1
-    tetronimo[1][1] = 1
-    tetronimo[1][2] = 1
-    tetronimo[2][1] = 1
-    */
-
-    // hardcode "O" block
-    tetronimo[0][0] = 1
-    tetronimo[0][1] = 1
-    tetronimo[1][0] = 1
-    tetronimo[1][1] = 1
+    // show_stats( stdscr , 8 , "random" , rand_tetro )
+    rand_block( tetronimo )
 
     block_height    := block_location[0]
     block_longitude := block_location[1]
@@ -292,18 +279,6 @@ func new_block( stdscr goncurses.Window , well_dimensions , block_location []int
             t_bit_vert := block_height    - t_vert
             t_bit_horz := block_longitude + t_horz
             if tetronimo[t_vert][t_horz] == 1 {
-                /*
-                debris_height := len( debris_map ) // testing
-                show_stats( stdscr , 13 , "debris_height" , debris_height  )
-                show_stats( stdscr , 14 , "debris_width" , len( debris_map[10])  )
-                show_stats( stdscr , 14 , "debris_height" , len(debris_map)  )
-                show_stats( stdscr , 15 , "debris_width_18" , len( debris_map[18])  )
-                show_stats( stdscr , 16 , "debris_width_19" , len( debris_map[19])  )
-                show_stats( stdscr , 17 , "debris_width_20" , len( debris_map[20])  )
-                show_stats( stdscr , 18 , "t_bit_vert" , t_bit_vert  )
-                show_stats( stdscr , 19 , "t_bit_horz" , t_bit_horz  )
-                stdscr.GetChar()
-                */
                 if debris_map[t_bit_vert][t_bit_horz] == 1 {
                     return 2 // game over!
                 }
@@ -375,67 +350,91 @@ func clear_debris ( well_dimensions []int , debris_map [][]int , stdscr goncurse
         }
     }
 
-    show_stats( stdscr , 7 , "ndeb len " , len(new_debris) )
     for i := ( len(debris_map) - delete_rows ) ; i < len(debris_map) ; i++ {
-        // TODO: make sure array has length!
         fresh_row := make( []int , well_width )
         new_debris[i] = fresh_row
-        show_stats( stdscr , 7 , "adding to " , i )
     }
 
     for this_row := range new_debris {
         debris_map[this_row] = new_debris[this_row]
     }
 
-    for this_row := range debris_map {
-        offset_show  := 8
-        show_stats( stdscr , offset_show + this_row , "array len " , len( debris_map[this_row] )  )
-    }
-    stdscr.GetChar()
-
-    /*
-    for i := 0 ; i < delete_rows ; i++ {
-        for d_vert := range debris_map {
-            if clear_rows[d_vert] == 1 {
-                show_stats( stdscr , 5 , "old len " , len( debris_map)  )
-                debris_map = append(debris_map[:d_vert], debris_map[d_vert+1:]...)
-                // deleted_rows++
-                show_stats( stdscr , 6 , "deleting row" , d_vert  )
-                show_stats( stdscr , 7 , "new len " , len( debris_map)  )
-                stdscr.GetChar()
-            }
-        }
-        fresh_row := make( []int , well_width )
-        debris_map = append( debris_map , fresh_row )
-    }
-    */
-
-    /*
-    for i := 0 ; i < deleted_rows ; i++ {
-        fresh_row := make( []int , well_width )
-        debris_map = append( debris_map , fresh_row )
-    }
-    */
-
-    /* Manual Method
-    down_rows := 0
-    for d_vert := range debris_map {
-
-        if clear_rows[d_vert] == 1 {
-            down_rows++
-            show_stats( stdscr , 20 , "clearing row" , d_vert  )
-            stdscr.GetChar()
-        }
-
-        if ( d_vert + down_rows ) <= ( len( debris_map ) - 1 ) {
-          debris_map[d_vert] = debris_map[d_vert+down_rows]
-        } else {
-            fresh_row := make( []int , well_width )
-            debris_map[d_vert] = fresh_row
-        }
-
-    }
-    */
-
 }
 
+func rand_block( tetronimo [][]int ) {
+
+    // define "+" block
+    /*
+    tetronimo[0][1] = 1
+    tetronimo[1][0] = 1
+    tetronimo[1][1] = 1
+    tetronimo[1][2] = 1
+    tetronimo[2][1] = 1
+    */
+
+    set_count := 7
+    t_size    := 4
+
+    tetronimo_set := make( [][][]int , set_count )
+    for set_num := 0 ; set_num < set_count ; set_num++ {
+        tetro_row := make([][]int, t_size)
+        for i := 0 ; i < t_size ; i++ {
+            tetro_col := make([]int, t_size)
+            tetro_row[i] = tetro_col
+        }
+        tetronimo_set[set_num] = tetro_row
+    }
+
+    // define "O" block
+    tetronimo_set[0][0][0] = 1
+    tetronimo_set[0][0][1] = 1
+    tetronimo_set[0][1][0] = 1
+    tetronimo_set[0][1][1] = 1
+
+    // define "T" block
+    tetronimo_set[1][0][0] = 1
+    tetronimo_set[1][0][1] = 1
+    tetronimo_set[1][0][2] = 1
+    tetronimo_set[1][1][1] = 1
+
+    // define "L" block
+    tetronimo_set[2][0][0] = 1
+    tetronimo_set[2][1][0] = 1
+    tetronimo_set[2][2][0] = 1
+    tetronimo_set[2][2][1] = 1
+
+    // define "J" block
+    tetronimo_set[3][0][1] = 1
+    tetronimo_set[3][1][1] = 1
+    tetronimo_set[3][2][0] = 1
+    tetronimo_set[3][2][1] = 1
+
+    // define "S" block
+    tetronimo_set[4][0][0] = 1
+    tetronimo_set[4][1][0] = 1
+    tetronimo_set[4][1][1] = 1
+    tetronimo_set[4][2][1] = 1
+
+    // define "Z" block
+    tetronimo_set[5][0][1] = 1
+    tetronimo_set[5][1][0] = 1
+    tetronimo_set[5][1][1] = 1
+    tetronimo_set[5][2][0] = 1
+
+    // define "I" block
+    tetronimo_set[6][0][1] = 1
+    tetronimo_set[6][1][1] = 1
+    tetronimo_set[6][2][1] = 1
+    tetronimo_set[6][3][1] = 1
+
+    rand.Seed(time.Now().Unix())
+    rand_tetro := rand.Intn(set_count)
+
+    for row := range tetronimo {
+        for col := range tetronimo[row] {
+            tetronimo[row][col] = tetronimo_set[rand_tetro][row][col]
+        }
+    }
+    // tetronimo = tetronimo_set[rand_tetro]
+
+}
