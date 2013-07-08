@@ -104,7 +104,7 @@ func main() {
 
 	speed := 1
 	go keys_in(stdscr, ck, nlock )
-	go t_timer(ct,speed)
+	go t_timer(ct,speed, nlock)
 
 	for keep_going := true; keep_going == true; {
 
@@ -177,7 +177,7 @@ func main() {
 
 		}
 
-		// speedup?
+		// speedup
 		if score[0][2] > 0 {
 			speed = int( score[0][2] / 10 )
 			if speed == 0 {
@@ -189,13 +189,13 @@ func main() {
 		show_stats(stdscr, 5,  "blocks    : ", score[0][1])
 		show_stats(stdscr, 6,  "rows      : ", score[0][2])
 
-		show_stats(stdscr, 8,  "tet 0     : ", score[1][0])
-		show_stats(stdscr, 9,  "tet 1     : ", score[1][1])
-		show_stats(stdscr, 10, "tet 2     : ", score[1][2])
-		show_stats(stdscr, 11, "tet 3     : ", score[1][3])
-		show_stats(stdscr, 12, "tet 4     : ", score[1][4])
-		show_stats(stdscr, 13, "tet 5     : ", score[1][5])
-		show_stats(stdscr, 14, "tet 6     : ", score[1][6])
+		show_stats(stdscr, 8,  "tet O     : ", score[1][0])
+		show_stats(stdscr, 9,  "tet T     : ", score[1][1])
+		show_stats(stdscr, 10, "tet L     : ", score[1][2])
+		show_stats(stdscr, 11, "tet J     : ", score[1][3])
+		show_stats(stdscr, 12, "tet S     : ", score[1][4])
+		show_stats(stdscr, 13, "tet Z     : ", score[1][5])
+		show_stats(stdscr, 14, "tet I     : ", score[1][6])
 
 		show_stats(stdscr, 16, "speed     : ", speed)
 
@@ -206,7 +206,7 @@ func main() {
 		nlock.Unlock()
 		switch {
 		case action == "timeoff":
-			go t_timer(ct,speed)
+			go t_timer(ct,speed, nlock)
 		case action == "keyboard":
 			go keys_in(stdscr, ck, nlock)
 		}
@@ -686,14 +686,16 @@ func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
 func keys_in(stdscr gc.Window, ck chan int, nlock struct { sync.Mutex } ) {
 	nlock.Lock()
 	somechar := int(stdscr.GetChar())
-	nlock.Unlock()
 	ck <- somechar
+	nlock.Unlock()
 }
 
-func t_timer(ct chan int, speed int) {
+func t_timer(ct chan int, speed int, nlock struct { sync.Mutex } ) {
 	mseconds := time.Duration(1000 / speed)
 	time.Sleep(mseconds * time.Millisecond)
+	nlock.Lock()
 	ct <- 110
+	nlock.Unlock()
 }
 
 func error_out( message string ) {
