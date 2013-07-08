@@ -6,7 +6,7 @@ import "fmt"
 import "math/rand"
 import "time"
 import "os"
-// import "sync"
+import "sync"
 // import "runtime"
 
 import gc "code.google.com/p/goncurses"
@@ -85,12 +85,10 @@ func main() {
 	score[0] = score_thing
 	score[1] = score_tetros
 
-	/*
 	// mutex
 	var nlock struct {
         sync.Mutex
     }
-	*/
 
 	// starting block
 	block_location := make([]int, 2)
@@ -105,7 +103,7 @@ func main() {
 	ct := make(chan int)
 
 	speed := 1
-	go keys_in(stdscr, ck)
+	go keys_in(stdscr, ck, nlock )
 	go t_timer(ct,speed)
 
 	for keep_going := true; keep_going == true; {
@@ -114,12 +112,12 @@ func main() {
 		var somechar int
 		select {
 		case somechar = <-ct:
-			// go t_timer(ct,speed)
 			action = "timeoff"
 		case somechar = <-ck:
-			// go keys_in(stdscr, ck)
 			action = "keyboard"
 		}
+
+		nlock.Lock()
 
 		movement := "hold"
 		pause := false
@@ -205,11 +203,12 @@ func main() {
 		stdscr.MovePrint( 1, 1, "" )
 		stdscr.Refresh()
 
+		nlock.Unlock()
 		switch {
 		case action == "timeoff":
 			go t_timer(ct,speed)
 		case action == "keyboard":
-			go keys_in(stdscr, ck)
+			go keys_in(stdscr, ck, nlock)
 		}
 
 	}
@@ -684,8 +683,10 @@ func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
 
 }
 
-func keys_in(stdscr gc.Window, ck chan int) {
+func keys_in(stdscr gc.Window, ck chan int, nlock struct { sync.Mutex } ) {
+	nlock.Lock()
 	somechar := int(stdscr.GetChar())
+	nlock.Unlock()
 	ck <- somechar
 }
 
