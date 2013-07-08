@@ -6,6 +6,7 @@ import "fmt"
 import "math/rand"
 import "time"
 import "os"
+// import "sync"
 // import "runtime"
 
 import gc "code.google.com/p/goncurses"
@@ -84,9 +85,18 @@ func main() {
 	score[0] = score_thing
 	score[1] = score_tetros
 
+	/*
+	// mutex
+	var nlock struct {
+        sync.Mutex
+    }
+	*/
+
 	// starting block
 	block_location := make([]int, 2)
-	block_id := new_block(stdscr, well_dimensions, block_location, tetronimo, score, debris_map, t_size)
+	// nlock.Lock()
+	block_id := new_block(stdscr, well_dimensions, block_location, tetronimo, score, debris_map, t_size )
+	// nlock.Unlock()
 
 	// keyboard channel
 	ck := make(chan int)
@@ -100,12 +110,15 @@ func main() {
 
 	for keep_going := true; keep_going == true; {
 
+		var action string
 		var somechar int
 		select {
-		case somechar = <-ck:
-			go keys_in(stdscr, ck)
 		case somechar = <-ct:
-			go t_timer(ct,speed)
+			// go t_timer(ct,speed)
+			action = "timeoff"
+		case somechar = <-ck:
+			// go keys_in(stdscr, ck)
+			action = "keyboard"
 		}
 
 		movement := "hold"
@@ -137,7 +150,9 @@ func main() {
 		}
 
 		// move block
+		// nlock.Lock()
 		block_status := move_block(stdscr, well_dimensions, block_location, movement, tetronimo, debris_map, score)
+		// nlock.Unlock()
 
 		// new block?
 		if block_status == 2 {
@@ -155,7 +170,9 @@ func main() {
 			}
 
 			clear_debris(well_dimensions, debris_map, score, stdscr)
-			block_id = new_block(stdscr, well_dimensions, block_location, tetronimo, score, debris_map, t_size)
+			// nlock.Lock()
+			block_id = new_block(stdscr, well_dimensions, block_location, tetronimo, score, debris_map, t_size )
+			// nlock.Unlock()
 			if block_id == 8 {
 				keep_going = false
 			}
@@ -187,6 +204,13 @@ func main() {
 		// this is to move the input char
 		stdscr.MovePrint( 1, 1, "" )
 		stdscr.Refresh()
+
+		switch {
+		case action == "timeoff":
+			go t_timer(ct,speed)
+		case action == "keyboard":
+			go keys_in(stdscr, ck)
+		}
 
 	}
 
@@ -393,7 +417,7 @@ func draw_border(stdscr gc.Window, well_dimensions []int) {
 
 }
 
-func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronimo , score, debris_map [][]int, t_size int) int {
+func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronimo , score, debris_map [][]int, t_size int ) int {
 
 	block_location[0] = well_dimensions[0] - 1 // block_height
 	block_location[1] = well_dimensions[1] / 2 // block_longitude
@@ -417,12 +441,12 @@ func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronim
 		}
 	}
 
-	draw_debris(stdscr, well_dimensions, debris_map)
+	draw_debris(stdscr, well_dimensions, debris_map )
 
 	return 0
 }
 
-func draw_debris(stdscr gc.Window, well_dimensions []int, debris_map [][]int) {
+func draw_debris(stdscr gc.Window, well_dimensions []int, debris_map [][]int ) {
 
 	term_row , term_col := stdscr.Maxyx()
 	well_depth := well_dimensions[0]
