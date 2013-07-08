@@ -5,7 +5,8 @@ package main
 import "fmt"
 import "math/rand"
 import "time"
-import "runtime"
+import "os"
+// import "runtime"
 
 import gc "code.google.com/p/goncurses"
 
@@ -18,6 +19,7 @@ import gc "code.google.com/p/goncurses"
 				1 point per level for each distance dropped
 				0 points for clearing rows
 		Speedup
+		Cleanup functions?
 		Print score, stats on exit
 	Improvements:
 		Adjustible well size and tetronimo set
@@ -27,13 +29,14 @@ import gc "code.google.com/p/goncurses"
 		Fix rotate: when rotate, move top left of grid
 		Hard drop
 		Draw well
+		Softcode well size
 */
 
 func main() {
 
 	// curses
 	stdscr, _ := gc.Init()
-	defer gc.End()
+	// defer gc.End()
 
 	// curses colors
 	gc.StartColor()
@@ -49,11 +52,9 @@ func main() {
 	// define well
 	well_depth := 20
 	well_width := 10
-	vert_headroom := 5
 	well_dimensions := make([]int, 3)
 	well_dimensions[0] = well_depth
 	well_dimensions[1] = well_width
-	well_dimensions[2] = vert_headroom
 
 	draw_border(stdscr, well_dimensions)
 
@@ -72,9 +73,20 @@ func main() {
 		debris_map[i] = debris_row
 	}
 
+	// score
+	//  0 tetronimo count
+	//  1 block count (ie. 4 per tetronimo)
+	//  2 score count
+	//  3 rows deleted
+	score := make([][]int, 2 )
+	score_thing  := make([]int, 4 )
+	score_tetros := make([]int, 7 ) // 7 different tetronimos
+	score[0] = score_thing
+	score[1] = score_tetros
+
 	// starting block
 	block_location := make([]int, 2)
-	block_id := new_block(stdscr, well_dimensions, block_location, tetronimo, debris_map, t_size)
+	block_id := new_block(stdscr, well_dimensions, block_location, tetronimo, score, debris_map, t_size)
 
 	// keyboard channel
 	ck := make(chan int)
@@ -82,22 +94,22 @@ func main() {
 	// timer channel
 	ct := make(chan int)
 
+	speed := 1
 	go keys_in(stdscr, ck)
-	go t_timer(ct)
+	go t_timer(ct,speed)
 
 	for keep_going := true; keep_going == true; {
 
 		var somechar int
-		// hithere := 0
 		select {
 		case somechar = <-ck:
 			go keys_in(stdscr, ck)
 		case somechar = <-ct:
-			go t_timer(ct)
-			// hithere = 1
+			go t_timer(ct,speed)
 		}
 
 		movement := "hold"
+		pause := false
 		switch {
 		case somechar == 113: // q
 			keep_going = false
@@ -107,21 +119,25 @@ func main() {
 			movement = "right"
 		case somechar == 110: // n
 			movement = "dropone"
+		case somechar == 112: // p
+			pause = true
 		case somechar == 107: // k
 			movement = "rotate"
 		case somechar == 32: // [space]
 			movement = "harddrop"
 		case somechar == 200: // TESTING
 		}
-		show_stats(stdscr, 2,  "somechar    ", somechar)
-		stdscr.MovePrint(21, 1, movement)
 
 		if keep_going == false {
 			break
 		}
 
+		if pause == true {
+			stdscr.GetChar()
+		}
+
 		// move block
-		block_status := move_block(stdscr, well_dimensions, block_location, movement, tetronimo, debris_map)
+		block_status := move_block(stdscr, well_dimensions, block_location, movement, tetronimo, debris_map, score)
 
 		// new block?
 		if block_status == 2 {
@@ -138,35 +154,61 @@ func main() {
 				}
 			}
 
-			clear_debris(well_dimensions, debris_map, stdscr)
-			block_id = new_block(stdscr, well_dimensions, block_location, tetronimo, debris_map, t_size)
+			clear_debris(well_dimensions, debris_map, score, stdscr)
+			block_id = new_block(stdscr, well_dimensions, block_location, tetronimo, score, debris_map, t_size)
 			if block_id == 8 {
 				keep_going = false
 			}
+
 		}
-		show_stats(stdscr, 1, "goroutines    ", runtime.NumGoroutine())
+
+		// speedup?
+		if score[0][2] > 0 {
+			speed = int( score[0][2] / 10 )
+			if speed == 0 {
+				speed = 1
+			}
+		}
+
+		show_stats(stdscr, 4,  "tetronimos: ", score[0][0])
+		show_stats(stdscr, 5,  "blocks    : ", score[0][1])
+		show_stats(stdscr, 6,  "rows      : ", score[0][2])
+
+		show_stats(stdscr, 8,  "tet 0     : ", score[1][0])
+		show_stats(stdscr, 9,  "tet 1     : ", score[1][1])
+		show_stats(stdscr, 10, "tet 2     : ", score[1][2])
+		show_stats(stdscr, 11, "tet 3     : ", score[1][3])
+		show_stats(stdscr, 12, "tet 4     : ", score[1][4])
+		show_stats(stdscr, 13, "tet 5     : ", score[1][5])
+		show_stats(stdscr, 14, "tet 6     : ", score[1][6])
+
+		show_stats(stdscr, 16, "speed     : ", speed)
+
+		// this is to move the input char
+		stdscr.MovePrint( 1, 1, "" )
 		stdscr.Refresh()
 
 	}
 
 	gc.End()
+	fmt.Print( "game over\n" )
 
 }
 
 func show_stats(stdscr gc.Window, height int, show_text string, show_val int) {
 
-	bh_status := fmt.Sprintf("%s : %02d     ", show_text, show_val)
+	bh_status := fmt.Sprintf("%s : %d     ", show_text, show_val)
 	stdscr.MovePrint(height, 1, bh_status)
 
 }
 
-func move_block(stdscr gc.Window, well_dimensions, block_location []int, operation string, tetronimo, debris_map [][]int) int {
+func move_block(stdscr gc.Window, well_dimensions, block_location []int, operation string, tetronimo, debris_map, score [][]int) int {
 
 	block_height := block_location[0]
 	block_longitude := block_location[1]
 
 	blocked := check_collisions(well_dimensions, block_location, tetronimo, debris_map, operation, stdscr)
-	stdscr.MovePrint(22, 1, operation)
+	// stdscr.MovePrint(22, 1, operation)
 
 	if blocked == true {
 		if operation == "dropone" {
@@ -190,7 +232,7 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 		block_height--
 	case operation == "harddrop":
 		block_height = sound_depth(block_location, tetronimo, debris_map , stdscr , well_dimensions )
-		show_stats(stdscr, 20, "block_height  ", block_height)
+		// show_stats(stdscr, 20, "block_height  ", block_height)
 		retstat = 2
 	}
 
@@ -281,8 +323,12 @@ func draw_block(stdscr gc.Window, well_dimensions []int, operation string, block
 	block_height := block_location[0]
 	block_longitude := block_location[1]
 
-	_, term_col := stdscr.Maxyx()
-	well_bottom := well_dimensions[0] + well_dimensions[2]
+	well_depth := well_dimensions[0]
+
+	term_row, term_col := stdscr.Maxyx()
+	vert_headroom := int( ( term_row - well_depth ) / 2 ) - 1
+
+	well_bottom := well_dimensions[0] + vert_headroom
 	well_left := ((term_col / 2) - well_dimensions[1])
 
 	block_paint := "  "
@@ -306,12 +352,16 @@ func draw_block(stdscr gc.Window, well_dimensions []int, operation string, block
 func draw_border(stdscr gc.Window, well_dimensions []int) {
 
 	// terminal size
-	// term_row, term_col := stdscr.Maxyx()
-	_, term_col := stdscr.Maxyx()
+	term_row, term_col := stdscr.Maxyx()
 
 	well_depth := well_dimensions[0]
 	well_width := well_dimensions[1]
-	vert_headroom := well_dimensions[2]
+
+	if well_depth + 1 >= term_row {
+		error_out( "too short!\n" )
+	}
+
+	vert_headroom := int( ( term_row - well_depth ) / 2 ) - 1
 
 	well_left := ((term_col / 2) - well_width) - 2
 	well_right := well_left + (well_width * 2) + 2
@@ -320,22 +370,15 @@ func draw_border(stdscr gc.Window, well_dimensions []int) {
 	// draw sides
 	for row_height := vert_headroom; row_height < well_bottom; row_height++ {
 
-		// stdscr.MovePrint(row_height, well_right, "| ")
 		stdscr.MovePrint(row_height, well_right, "" )
 		stdscr.AddChar( 4194424 )
-		// 4194410 bottom right corner
-		// 4194413 bottom left corner
-		// 4194415 - 19 horizontal lines
-		// 4194424 vertical line
 
-		// stdscr.MovePrint(row_height, well_left, " |")
 		stdscr.MovePrint(row_height, well_left, " ")
 		stdscr.AddChar( 4194424 )
 
 	}
 
 	for col_loc := (well_left + 2); col_loc < well_right; col_loc++ {
-		// stdscr.MovePrint(well_bottom, col_loc, "=")
 		stdscr.MovePrint(well_bottom, col_loc, "")
 		stdscr.AddChar( 4194417 )
 	}
@@ -350,21 +393,23 @@ func draw_border(stdscr gc.Window, well_dimensions []int) {
 
 }
 
-func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronimo , debris_map [][]int, t_size int) int {
+func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronimo , score, debris_map [][]int, t_size int) int {
 
 	block_location[0] = well_dimensions[0] - 1 // block_height
 	block_location[1] = well_dimensions[1] / 2 // block_longitude
 
-	rand_block(tetronimo, t_size, stdscr)
-	show_stats(stdscr, 14, "tetronimo  ", len(tetronimo))
+	rand_block(tetronimo, score, t_size, stdscr)
+	// show_stats(stdscr, 14, "tetronimo  ", len(tetronimo))
 
 	block_height := block_location[0]
 	block_longitude := block_location[1]
+	// b_count := 0
 	for t_vert := range tetronimo {
 		for t_horz := range tetronimo[t_vert] {
 			t_bit_vert := block_height - t_vert
 			t_bit_horz := block_longitude + t_horz
 			if tetronimo[t_vert][t_horz] > 0 {
+				// b_count++
 				if debris_map[t_bit_vert][t_bit_horz] > 0 {
 					return 8 // game over!
 				}
@@ -379,8 +424,9 @@ func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronim
 
 func draw_debris(stdscr gc.Window, well_dimensions []int, debris_map [][]int) {
 
-	_, term_col := stdscr.Maxyx()
-	vert_headroom := well_dimensions[2]
+	term_row , term_col := stdscr.Maxyx()
+	well_depth := well_dimensions[0]
+	vert_headroom := int( ( term_row - well_depth ) / 2 ) - 1
 
 	// var well_width int
 	for row := range debris_map {
@@ -401,7 +447,7 @@ func draw_debris(stdscr gc.Window, well_dimensions []int, debris_map [][]int) {
 }
 
 // stdscr for debugging
-func clear_debris(well_dimensions []int, debris_map [][]int, stdscr gc.Window) {
+func clear_debris(well_dimensions []int, debris_map, score [][]int, stdscr gc.Window) {
 
 	deb_height := len(debris_map)
 	well_width := well_dimensions[1]
@@ -428,6 +474,8 @@ func clear_debris(well_dimensions []int, debris_map [][]int, stdscr gc.Window) {
 		return
 	}
 
+	score[0][2] += delete_rows
+
 	new_debris := make([][]int, len(debris_map))
 	new_rows := 0
 	for d_vert := range debris_map {
@@ -450,7 +498,7 @@ func clear_debris(well_dimensions []int, debris_map [][]int, stdscr gc.Window) {
 
 }
 
-func rand_block(tetronimo [][]int, t_size int, stdscr gc.Window) {
+func rand_block(tetronimo , score [][]int, t_size int, stdscr gc.Window) {
 
 	set_count := 7
 
@@ -517,14 +565,23 @@ func rand_block(tetronimo [][]int, t_size int, stdscr gc.Window) {
 	// rand_tetro := 6  // TESTING i block
 	// rand_tetro := 0  // TESTING o block
 
+	b_count := 0
 	for row := range tetronimo {
 		for col := range tetronimo[row] {
-			tetronimo[row][col] = tetronimo_set[rand_tetro + 1][row][col]
+			this_block := tetronimo_set[rand_tetro + 1][row][col]
+			if this_block > 0 {
+				b_count++
+			}
+			tetronimo[row][col] = this_block
 		}
 	}
 
-	show_stats(stdscr, 12, "rand_tetro ", len(tetronimo_set[rand_tetro + 1]))
-	show_stats(stdscr, 13, "tetronimo  ", len(tetronimo))
+	// show_stats(stdscr, 12, "rand_tetro ", len(tetronimo_set[rand_tetro + 1]))
+	// show_stats(stdscr, 13, "tetronimo  ", len(tetronimo))
+
+	score[0][0] += 1
+	score[0][1] += b_count
+	score[1][rand_tetro] += 1
 
 }
 
@@ -579,8 +636,8 @@ func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
 		row_offset = 2
 	}
 	// show_stats(stdscr, 15, "leftcol ", left_col)
-	show_stats(stdscr, 16, "offset  ", col_offset)
-	show_stats(stdscr, 17, "rowofset", row_offset)
+	// show_stats(stdscr, 16, "offset  ", col_offset)
+	// show_stats(stdscr, 17, "rowofset", row_offset)
 	// show_stats(stdscr, 18, "top row ", top_row)
 
 	for row := range tl_tetro {
@@ -608,8 +665,16 @@ func keys_in(stdscr gc.Window, ck chan int) {
 	ck <- somechar
 }
 
-func t_timer(ct chan int) {
-	time.Sleep(1000 * time.Millisecond)
-	// time.Sleep(100000 * time.Second)
+func t_timer(ct chan int, speed int) {
+	mseconds := time.Duration(1000 / speed)
+	time.Sleep(mseconds * time.Millisecond)
 	ct <- 110
+}
+
+func error_out( message string ) {
+
+	gc.End()
+	fmt.Print( message )
+	os.Exit( 1 )
+
 }
