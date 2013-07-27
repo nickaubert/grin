@@ -10,9 +10,12 @@ import "sync"
 // import "runtime"
 
 import gc "code.google.com/p/goncurses"
+// import gc "github.com/nsf/termbox-go"
 
 /*
 	TODO:
+		*** CONVERT FROM goncurses to termbox
+			step 1. remove passing gc object for troubleshooting
 		Screen cleanup
 		Keep score, stats
 			Tint:
@@ -37,6 +40,7 @@ func main() {
 
 	// curses
 	stdscr, _ := gc.Init()
+	scndscr, _ := gc.Init()
 	// defer gc.End()
 
 	// curses colors
@@ -103,7 +107,7 @@ func main() {
 	ct := make(chan int)
 
 	speed := 1
-	go keys_in(stdscr, ck, nlock )
+	go keys_in(scndscr, ck, nlock )
 	go t_timer(ct,speed, nlock)
 
 	for keep_going := true; keep_going == true; {
@@ -167,7 +171,7 @@ func main() {
 				}
 			}
 
-			clear_debris(well_dimensions, debris_map, score, stdscr)
+			clear_debris(well_dimensions, debris_map, score )
 			// nlock.Lock()
 			block_id = new_block(stdscr, well_dimensions, block_location, tetronimo, score, debris_map, t_size )
 			// nlock.Unlock()
@@ -208,7 +212,7 @@ func main() {
 		case action == "timeoff":
 			go t_timer(ct,speed, nlock)
 		case action == "keyboard":
-			go keys_in(stdscr, ck, nlock)
+			go keys_in(scndscr, ck, nlock)
 		}
 
 	}
@@ -230,7 +234,7 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 	block_height := block_location[0]
 	block_longitude := block_location[1]
 
-	blocked := check_collisions(well_dimensions, block_location, tetronimo, debris_map, operation, stdscr)
+	blocked := check_collisions(well_dimensions, block_location, tetronimo, debris_map, operation )
 	// stdscr.MovePrint(22, 1, operation)
 
 	if blocked == true {
@@ -250,12 +254,11 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 	case operation == "right":
 		block_longitude++
 	case operation == "rotate":
-		rotate_tetronimo(tetronimo, stdscr)
+		rotate_tetronimo(tetronimo)
 	case operation == "dropone":
 		block_height--
 	case operation == "harddrop":
-		block_height = sound_depth(block_location, tetronimo, debris_map , stdscr , well_dimensions )
-		// show_stats(stdscr, 20, "block_height  ", block_height)
+		block_height = sound_depth(block_location, tetronimo, debris_map , well_dimensions )
 		retstat = 2
 	}
 
@@ -268,7 +271,7 @@ func move_block(stdscr gc.Window, well_dimensions, block_location []int, operati
 
 }
 
-func check_collisions(well_dimensions, block_location []int, tetronimo, debris_map [][]int, operation string, stdscr gc.Window) bool {
+func check_collisions(well_dimensions, block_location []int, tetronimo, debris_map [][]int, operation string ) bool {
 
 	ghost_height := block_location[0]
 	ghost_longitude := block_location[1]
@@ -288,11 +291,10 @@ func check_collisions(well_dimensions, block_location []int, tetronimo, debris_m
 	case operation == "right":
 		ghost_longitude++
 	case operation == "rotate":
-		rotate_tetronimo(ghost_tetro,stdscr)
+		rotate_tetronimo(ghost_tetro)
 	case operation == "dropone":
 		ghost_height--
 	case operation == "harddrop":
-		// ghost_height = sound_depth(block_location, tetronimo, debris_map)
 		return false
 	}
 
@@ -322,7 +324,7 @@ func check_collisions(well_dimensions, block_location []int, tetronimo, debris_m
 	return false
 }
 
-func sound_depth(block_location []int, tetronimo, debris_map [][]int , stdscr gc.Window , well_dimensions []int) int {
+func sound_depth(block_location []int, tetronimo, debris_map [][]int , well_dimensions []int) int {
 
 	block_height := block_location[0]
 	block_longitude := block_location[1]
@@ -330,7 +332,7 @@ func sound_depth(block_location []int, tetronimo, debris_map [][]int , stdscr gc
 	// max_height := 0
 	for ghost_height := block_height ; ghost_height >=0 ; ghost_height-- {
 		ghost_location := []int{ghost_height,block_longitude}
-		blocked := check_collisions(well_dimensions, ghost_location, tetronimo, debris_map, "dropone", stdscr)
+		blocked := check_collisions(well_dimensions, ghost_location, tetronimo, debris_map, "dropone" )
 		if blocked == true {
 			return ghost_height
 		}
@@ -421,8 +423,7 @@ func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronim
 	block_location[0] = well_dimensions[0] - 1 // block_height
 	block_location[1] = well_dimensions[1] / 2 // block_longitude
 
-	rand_block(tetronimo, score, t_size, stdscr)
-	// show_stats(stdscr, 14, "tetronimo  ", len(tetronimo))
+	rand_block(tetronimo, score, t_size )
 
 	block_height := block_location[0]
 	block_longitude := block_location[1]
@@ -469,8 +470,7 @@ func draw_debris(stdscr gc.Window, well_dimensions []int, debris_map [][]int ) {
 
 }
 
-// stdscr for debugging
-func clear_debris(well_dimensions []int, debris_map, score [][]int, stdscr gc.Window) {
+func clear_debris(well_dimensions []int, debris_map, score [][]int ) {
 
 	deb_height := len(debris_map)
 	well_width := well_dimensions[1]
@@ -521,7 +521,7 @@ func clear_debris(well_dimensions []int, debris_map, score [][]int, stdscr gc.Wi
 
 }
 
-func rand_block(tetronimo , score [][]int, t_size int, stdscr gc.Window) {
+func rand_block(tetronimo , score [][]int, t_size int ) {
 
 	set_count := 7
 
@@ -599,16 +599,13 @@ func rand_block(tetronimo , score [][]int, t_size int, stdscr gc.Window) {
 		}
 	}
 
-	// show_stats(stdscr, 12, "rand_tetro ", len(tetronimo_set[rand_tetro + 1]))
-	// show_stats(stdscr, 13, "tetronimo  ", len(tetronimo))
-
 	score[0][0] += 1
 	score[0][1] += b_count
 	score[1][rand_tetro] += 1
 
 }
 
-func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
+func rotate_tetronimo(tetronimo [][]int ) {
 
 	// hold_tetro is a clone of tetronimo
 	hold_tetro := make([][]int, len(tetronimo))
@@ -658,10 +655,6 @@ func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
 	if row_offset > 2 {
 		row_offset = 2
 	}
-	// show_stats(stdscr, 15, "leftcol ", left_col)
-	// show_stats(stdscr, 16, "offset  ", col_offset)
-	// show_stats(stdscr, 17, "rowofset", row_offset)
-	// show_stats(stdscr, 18, "top row ", top_row)
 
 	for row := range tl_tetro {
 		this_row := row - row_offset
@@ -683,9 +676,9 @@ func rotate_tetronimo(tetronimo [][]int, stdscr gc.Window) {
 
 }
 
-func keys_in(stdscr gc.Window, ck chan int, nlock struct { sync.Mutex } ) {
+func keys_in(scndscr gc.Window, ck chan int, nlock struct { sync.Mutex } ) {
 	nlock.Lock()
-	somechar := int(stdscr.GetChar())
+	somechar := int(scndscr.GetChar())
 	ck <- somechar
 	nlock.Unlock()
 }
