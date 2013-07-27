@@ -97,7 +97,7 @@ func main() {
 	// starting block
 	block_location := make([]int, 2)
 	// nlock.Lock()
-	block_id := new_block(stdscr, well_dimensions, block_location, tetronimo, score, debris_map, t_size )
+	block_id := new_block(well_dimensions, block_location, tetronimo, score, debris_map, t_size )
 	// nlock.Unlock()
 
 	// keyboard channel
@@ -123,23 +123,23 @@ func main() {
 
 		nlock.Lock()
 
-		movement := "hold"
+		operation := "hold"
 		pause := false
 		switch {
 		case somechar == 113: // q
 			keep_going = false
 		case somechar == 106: // j
-			movement = "left"
+			operation = "left"
 		case somechar == 108: // l
-			movement = "right"
+			operation = "right"
 		case somechar == 110: // n
-			movement = "dropone"
+			operation = "dropone"
 		case somechar == 112: // p
 			pause = true
 		case somechar == 107: // k
-			movement = "rotate"
+			operation = "rotate"
 		case somechar == 32: // [space]
-			movement = "harddrop"
+			operation = "harddrop"
 		case somechar == 200: // TESTING
 		}
 
@@ -152,9 +152,44 @@ func main() {
 		}
 
 		// move block
-		// nlock.Lock()
-		block_status := move_block(stdscr, well_dimensions, block_location, movement, tetronimo, debris_map, score)
-		// nlock.Unlock()
+		block_status := 0
+
+		block_height := block_location[0]
+		block_longitude := block_location[1]
+
+		blocked := check_collisions(well_dimensions, block_location, tetronimo, debris_map, operation )
+
+		if blocked == true {
+			if operation == "dropone" {
+				block_status = 2
+			} else {
+				block_status = 1
+			}
+		} else {
+
+			draw_block(stdscr, well_dimensions, "erase", block_location, tetronimo )
+
+			block_status = 0
+			switch {
+			case operation == "left":
+				block_longitude--
+			case operation == "right":
+				block_longitude++
+			case operation == "rotate":
+				rotate_tetronimo(tetronimo)
+			case operation == "dropone":
+				block_height--
+			case operation == "harddrop":
+				block_height = sound_depth(block_location, tetronimo, debris_map , well_dimensions )
+				block_status = 2
+			}
+
+			block_location[0] = block_height
+			block_location[1] = block_longitude
+
+			draw_block(stdscr, well_dimensions, "draw", block_location, tetronimo )
+
+		}
 
 		// new block?
 		if block_status == 2 {
@@ -173,7 +208,8 @@ func main() {
 
 			clear_debris(well_dimensions, debris_map, score )
 			// nlock.Lock()
-			block_id = new_block(stdscr, well_dimensions, block_location, tetronimo, score, debris_map, t_size )
+			block_id = new_block(well_dimensions, block_location, tetronimo, score, debris_map, t_size )
+			draw_debris(stdscr, well_dimensions, debris_map )
 			// nlock.Unlock()
 			if block_id == 8 {
 				keep_going = false
@@ -226,48 +262,6 @@ func show_stats(stdscr gc.Window, height int, show_text string, show_val int) {
 
 	bh_status := fmt.Sprintf("%s : %d     ", show_text, show_val)
 	stdscr.MovePrint(height, 1, bh_status)
-
-}
-
-func move_block(stdscr gc.Window, well_dimensions, block_location []int, operation string, tetronimo, debris_map, score [][]int) int {
-
-	block_height := block_location[0]
-	block_longitude := block_location[1]
-
-	blocked := check_collisions(well_dimensions, block_location, tetronimo, debris_map, operation )
-	// stdscr.MovePrint(22, 1, operation)
-
-	if blocked == true {
-		if operation == "dropone" {
-			return 2
-		} else {
-			return 1
-		}
-	}
-
-	draw_block(stdscr, well_dimensions, "erase", block_location, tetronimo )
-
-	retstat := 0
-	switch {
-	case operation == "left":
-		block_longitude--
-	case operation == "right":
-		block_longitude++
-	case operation == "rotate":
-		rotate_tetronimo(tetronimo)
-	case operation == "dropone":
-		block_height--
-	case operation == "harddrop":
-		block_height = sound_depth(block_location, tetronimo, debris_map , well_dimensions )
-		retstat = 2
-	}
-
-	block_location[0] = block_height
-	block_location[1] = block_longitude
-
-	draw_block(stdscr, well_dimensions, "draw", block_location, tetronimo )
-
-	return retstat
 
 }
 
@@ -418,7 +412,7 @@ func draw_border(stdscr gc.Window, well_dimensions []int) {
 
 }
 
-func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronimo , score, debris_map [][]int, t_size int ) int {
+func new_block( well_dimensions, block_location []int, tetronimo , score, debris_map [][]int, t_size int ) int {
 
 	block_location[0] = well_dimensions[0] - 1 // block_height
 	block_location[1] = well_dimensions[1] / 2 // block_longitude
@@ -440,8 +434,6 @@ func new_block(stdscr gc.Window, well_dimensions, block_location []int, tetronim
 			}
 		}
 	}
-
-	draw_debris(stdscr, well_dimensions, debris_map )
 
 	return 0
 }
