@@ -6,11 +6,12 @@ import "fmt"
 import "math/rand"
 import "time"
 import "os"
-import "sync"
+// import "unicode/utf8"
+// import "sync"
 // import "runtime"
 
-import gc "code.google.com/p/goncurses"
-// import gc "github.com/nsf/termbox-go"
+// import gc "code.google.com/p/goncurses"
+import tb "github.com/nsf/termbox-go"
 
 /*
 	TODO:
@@ -38,11 +39,13 @@ import gc "code.google.com/p/goncurses"
 
 func main() {
 
-	// curses
-	stdscr, _ := gc.Init()
-	scndscr, _ := gc.Init()
-	// defer gc.End()
+    err := tb.Init()
+    if err != nil {
+        panic(err)
+    }
+	defer tb.Close()
 
+	/*
 	// curses colors
 	gc.StartColor()
 	gc.InitPair(0, gc.C_BLACK, gc.C_BLACK)
@@ -53,6 +56,7 @@ func main() {
 	gc.InitPair(5, gc.C_BLACK, gc.C_GREEN)
 	gc.InitPair(6, gc.C_BLACK, gc.C_CYAN)
 	gc.InitPair(7, gc.C_BLACK, gc.C_RED)
+	*/
 
 	// define well
 	well_depth := 20
@@ -61,7 +65,9 @@ func main() {
 	well_dimensions[0] = well_depth
 	well_dimensions[1] = well_width
 
-	draw_border(stdscr, well_dimensions)
+	// TODO - termbox
+	// draw_border_gc(stdscr, well_dimensions)
+	draw_border(well_dimensions)
 
 	// tetromino
 	t_size := 4
@@ -89,39 +95,30 @@ func main() {
 	score[0] = score_thing
 	score[1] = score_tetros
 
-	// mutex
-	var nlock struct {
-        sync.Mutex
-    }
-
 	// starting block
 	block_location := make([]int, 2)
-	// nlock.Lock()
 	block_id := new_block(well_dimensions, block_location, tetronimo, score, debris_map, t_size )
-	// nlock.Unlock()
 
 	// keyboard channel
-	ck := make(chan int)
+	ck := make(chan rune)
 
 	// timer channel
-	ct := make(chan int)
+	ct := make(chan rune)
 
 	speed := 1
-	go keys_in(scndscr, ck, nlock )
-	go t_timer(ct,speed, nlock)
+	go keys_in( ck )
+	go t_timer( ct , speed )
 
 	for keep_going := true; keep_going == true; {
 
 		var action string
-		var somechar int
+		var somechar rune
 		select {
 		case somechar = <-ct:
 			action = "timeoff"
 		case somechar = <-ck:
 			action = "keyboard"
 		}
-
-		nlock.Lock()
 
 		operation := "hold"
 		pause := false
@@ -138,7 +135,7 @@ func main() {
 			pause = true
 		case somechar == 107: // k
 			operation = "rotate"
-		case somechar == 32: // [space]
+		case somechar == 0: // 32: // [space]
 			operation = "harddrop"
 		case somechar == 200: // TESTING
 		}
@@ -147,8 +144,12 @@ func main() {
 			break
 		}
 
+		// TODO: convert to tb
+		// pause
 		if pause == true {
-			stdscr.GetChar()
+			// stdscr.GetChar()
+			bytes := make ([]byte, 20);
+			os.Stdin.Read(bytes);
 		}
 
 		// move block
@@ -167,7 +168,7 @@ func main() {
 			}
 		} else {
 
-			draw_block(stdscr, well_dimensions, "erase", block_location, tetronimo )
+			draw_block( well_dimensions, "erase", block_location, tetronimo )
 
 			block_status = 0
 			switch {
@@ -187,7 +188,7 @@ func main() {
 			block_location[0] = block_height
 			block_location[1] = block_longitude
 
-			draw_block(stdscr, well_dimensions, "draw", block_location, tetronimo )
+			draw_block( well_dimensions, "draw", block_location, tetronimo )
 
 		}
 
@@ -207,10 +208,9 @@ func main() {
 			}
 
 			clear_debris(well_dimensions, debris_map, score )
-			// nlock.Lock()
 			block_id = new_block(well_dimensions, block_location, tetronimo, score, debris_map, t_size )
-			draw_debris(stdscr, well_dimensions, debris_map )
-			// nlock.Unlock()
+			// draw_debris_gc(stdscr, well_dimensions, debris_map )
+			draw_debris( well_dimensions, debris_map )
 			if block_id == 8 {
 				keep_going = false
 			}
@@ -225,43 +225,44 @@ func main() {
 			}
 		}
 
-		show_stats(stdscr, 4,  "tetronimos: ", score[0][0])
-		show_stats(stdscr, 5,  "blocks    : ", score[0][1])
-		show_stats(stdscr, 6,  "rows      : ", score[0][2])
+		show_stats( 4,  "tetronimos: ", score[0][0])
+		show_stats( 5,  "blocks    : ", score[0][1])
+		show_stats( 6,  "rows      : ", score[0][2])
 
-		show_stats(stdscr, 8,  "tet O     : ", score[1][0])
-		show_stats(stdscr, 9,  "tet T     : ", score[1][1])
-		show_stats(stdscr, 10, "tet L     : ", score[1][2])
-		show_stats(stdscr, 11, "tet J     : ", score[1][3])
-		show_stats(stdscr, 12, "tet S     : ", score[1][4])
-		show_stats(stdscr, 13, "tet Z     : ", score[1][5])
-		show_stats(stdscr, 14, "tet I     : ", score[1][6])
+		show_stats( 8,  "tet O     : ", score[1][0])
+		show_stats( 9,  "tet T     : ", score[1][1])
+		show_stats( 10, "tet L     : ", score[1][2])
+		show_stats( 11, "tet J     : ", score[1][3])
+		show_stats( 12, "tet S     : ", score[1][4])
+		show_stats( 13, "tet Z     : ", score[1][5])
+		show_stats( 14, "tet I     : ", score[1][6])
 
-		show_stats(stdscr, 16, "speed     : ", speed)
+		show_stats( 16, "speed     : ", speed)
 
-		// this is to move the input char
-		stdscr.MovePrint( 1, 1, "" )
-		stdscr.Refresh()
+		someint := int(somechar)
+		show_stats( 18, "keypress  : ", someint)
 
-		nlock.Unlock()
+		tb.Flush()
+
+		// nlock.Unlock()
 		switch {
 		case action == "timeoff":
-			go t_timer(ct,speed, nlock)
+			go t_timer( ct , speed )
 		case action == "keyboard":
-			go keys_in(scndscr, ck, nlock)
+			go keys_in( ck )
 		}
 
 	}
 
-	gc.End()
+	// gc.End()
 	fmt.Print( "game over\n" )
 
 }
 
-func show_stats(stdscr gc.Window, height int, show_text string, show_val int) {
+func show_stats( height int, show_text string, show_val int) {
 
 	bh_status := fmt.Sprintf("%s : %d     ", show_text, show_val)
-	stdscr.MovePrint(height, 1, bh_status)
+	print_tb( 0, height , 0 , 0 , bh_status )
 
 }
 
@@ -337,41 +338,41 @@ func sound_depth(block_location []int, tetronimo, debris_map [][]int , well_dime
 
 }
 
-func draw_block(stdscr gc.Window, well_dimensions []int, operation string, block_location []int, tetronimo [][]int ) {
+func draw_block( well_dimensions []int, operation string, block_location []int, tetronimo [][]int ) {
 
 	block_height := block_location[0]
 	block_longitude := block_location[1]
 
 	well_depth := well_dimensions[0]
 
-	term_row, term_col := stdscr.Maxyx()
+	term_col, term_row := tb.Size()
 	vert_headroom := int( ( term_row - well_depth ) / 2 ) - 1
 
 	well_bottom := well_dimensions[0] + vert_headroom
 	well_left := ((term_col / 2) - well_dimensions[1])
 
-	block_paint := "  "
-
 	for t_vert := range tetronimo {
 		for t_horz := range tetronimo[t_vert] {
 			if tetronimo[t_vert][t_horz] > 0 {
-				color := 0
+				color := tb.ColorDefault
 				if operation == "draw" {
-					color = tetronimo[t_vert][t_horz]
+					// color = tetronimo[t_vert][t_horz]
+					color = tb.ColorGreen
 				}
-				stdscr.ColorOn(byte(color))
-				stdscr.MovePrint((well_bottom - block_height + t_vert), (well_left + (block_longitude * 2) + (t_horz * 2)), block_paint)
-				stdscr.ColorOff(byte(color))
+				height    := (well_bottom - block_height + t_vert)
+				longitude := (well_left + (block_longitude * 2) + (t_horz * 2))
+				tb.SetCell( longitude     , height , 0 , 0 , color )
+				tb.SetCell( longitude + 1 , height , 0 , 0 , color )
 			}
 		}
 	}
 
 }
 
-func draw_border(stdscr gc.Window, well_dimensions []int) {
+func draw_border( well_dimensions []int ) {
 
 	// terminal size
-	term_row, term_col := stdscr.Maxyx()
+	term_col, term_row := tb.Size()
 
 	well_depth := well_dimensions[0]
 	well_width := well_dimensions[1]
@@ -386,29 +387,27 @@ func draw_border(stdscr gc.Window, well_dimensions []int) {
 	well_right := well_left + (well_width * 2) + 2
 	well_bottom := vert_headroom + well_depth + 1
 
-	// draw sides
+	vline  := rune(0x2502)
+	bleft  := rune(0x2514)
+	bright := rune(0x2518)
+	hline  := rune(0x2500)
+
+	// draw well sides
 	for row_height := vert_headroom; row_height < well_bottom; row_height++ {
-
-		stdscr.MovePrint(row_height, well_right, "" )
-		stdscr.AddChar( 4194424 )
-
-		stdscr.MovePrint(row_height, well_left, " ")
-		stdscr.AddChar( 4194424 )
-
+		tb.SetCell( well_right    , row_height , vline , 0 , 0 )
+		tb.SetCell( well_left + 1 , row_height , vline , 0 , 0 )
 	}
 
+	// draw well bottom
 	for col_loc := (well_left + 2); col_loc < well_right; col_loc++ {
-		stdscr.MovePrint(well_bottom, col_loc, "")
-		stdscr.AddChar( 4194417 )
+		tb.SetCell( col_loc , well_bottom , hline , 0 , 0 )
 	}
 
-	stdscr.MovePrint(well_bottom, well_left + 1, "")
-	stdscr.AddChar( 4194413 )
+	// draw well corners
+	tb.SetCell( well_left + 1 , well_bottom , bleft , 0 , 0 )
+	tb.SetCell( well_right , well_bottom , bright , 0 , 0 )
 
-	stdscr.MovePrint(well_bottom, well_right, "")
-	stdscr.AddChar( 4194410 )
-
-	stdscr.Refresh()
+	tb.Flush()
 
 }
 
@@ -438,9 +437,9 @@ func new_block( well_dimensions, block_location []int, tetronimo , score, debris
 	return 0
 }
 
-func draw_debris(stdscr gc.Window, well_dimensions []int, debris_map [][]int ) {
+func draw_debris( well_dimensions []int, debris_map [][]int ) {
 
-	term_row , term_col := stdscr.Maxyx()
+	term_col, term_row := tb.Size()
 	well_depth := well_dimensions[0]
 	vert_headroom := int( ( term_row - well_depth ) / 2 ) - 1
 
@@ -450,18 +449,17 @@ func draw_debris(stdscr gc.Window, well_dimensions []int, debris_map [][]int ) {
 			row_loc := vert_headroom + well_dimensions[0] - row
 			col_loc := ((term_col / 2) - well_dimensions[1]) + (col * 2)
 			if debris_map[row][col] > 0 {
-				color := debris_map[row][col]
-				stdscr.ColorOn(byte(color))
-				stdscr.MovePrint(row_loc, col_loc, "  ")
-				stdscr.ColorOff(byte(color))
+				// color := debris_map[row][col]
+				tb.SetCell( col_loc ,    row_loc , 0 , 0 , tb.ColorBlue )
+				tb.SetCell( col_loc + 1, row_loc , 0 , 0 , tb.ColorBlue )
 			} else {
-				stdscr.MovePrint(row_loc, col_loc, "  ")
+				tb.SetCell( col_loc     , row_loc , 0 , 0 , tb.ColorDefault )
+				tb.SetCell( col_loc + 1 , row_loc , 0 , 0 , tb.ColorDefault )
 			}
 		}
 	}
 
 }
-
 func clear_debris(well_dimensions []int, debris_map, score [][]int ) {
 
 	deb_height := len(debris_map)
@@ -668,25 +666,33 @@ func rotate_tetronimo(tetronimo [][]int ) {
 
 }
 
-func keys_in(scndscr gc.Window, ck chan int, nlock struct { sync.Mutex } ) {
-	nlock.Lock()
-	somechar := int(scndscr.GetChar())
-	ck <- somechar
-	nlock.Unlock()
+func keys_in( ck chan rune  ) {
+	// buf := make([]byte, 1)
+	// r := tb.PollEvent().Ch
+	// char := utf8.EncodeRune(buf, r)
+	char := tb.PollEvent().Ch
+	ck <- char
 }
 
-func t_timer(ct chan int, speed int, nlock struct { sync.Mutex } ) {
+func t_timer(ct chan rune, speed int ) {
 	mseconds := time.Duration(1000 / speed)
 	time.Sleep(mseconds * time.Millisecond)
-	nlock.Lock()
-	ct <- 110
-	nlock.Unlock()
+	ct <- rune(110)
 }
 
 func error_out( message string ) {
 
-	gc.End()
+	// gc.End()
 	fmt.Print( message )
 	os.Exit( 1 )
 
 }
+
+func print_tb(x, y int, fg, bg tb.Attribute, msg string) {
+    for _, c := range msg {
+        tb.SetCell(x, y, c, fg, bg)
+        x++
+    }
+	tb.Flush()
+}
+
