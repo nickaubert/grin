@@ -12,8 +12,8 @@ import tb "github.com/nsf/termbox-go"
 /*
 	TODO:
 		Cleanup functions, data objects?
-		Print score, stats on exit
 		Change tetronimo shape from grid to vector?
+		High scores in sqlite?
 	Improvements:
 		Adjustible well size and tetronimo set
 		Random debris map at start
@@ -30,17 +30,27 @@ import tb "github.com/nsf/termbox-go"
 				1 point per level for each tetronimo
 				1 point per level for each distance dropped
 				0 points for clearing rows
+		Print score, stats on exit
 		*** CONVERT FROM goncurses to termbox
 */
 
 type Tetronimo struct {
-	shape [][]tb.Attribute
-	height int
+	shape     [][]tb.Attribute
+	height    int
 	longitude int
 }
 
 type Well struct {
 	debris_map [][]tb.Attribute
+}
+
+type Stats struct {
+	t_count int // tetronimo count
+	b_count int // block count
+	score   int
+	rows    int
+	speed   int
+	t_types []int
 }
 
 func main() {
@@ -54,29 +64,24 @@ func main() {
 
 	// tetromino
 	t_size := 4
-	tetronimo := new( Tetronimo )
-	set_tetronimo( tetronimo , t_size )
+	tetronimo := new(Tetronimo)
+	set_tetronimo(tetronimo, t_size)
 
 	// define well
 	well_depth := 20
 	well_width := 10
-	well := new( Well )
-	set_well( well , well_depth , well_width )
+	well := new(Well)
+	set_well(well, well_depth, well_width)
 	draw_border(well)
 
-	// score
-	//  0 tetronimo count
-	//  1 block count (ie. 4 per tetronimo)
-	//  2 score count
-	//  3 rows deleted
-	score := make([][]int, 2)
-	score_thing := make([]int, 4)
-	score_tetros := make([]int, 7) // 7 different tetronimos
-	score[0] = score_thing
-	score[1] = score_tetros
+	// stats
+	speed := 1
+	set_count := 7
+	stats := new(Stats)
+	set_stats(stats, set_count, speed)
 
 	// starting block
-	block_id := new_block( well , tetronimo , score )
+	block_id := new_block(well, tetronimo, stats)
 
 	// keyboard channel
 	ck := make(chan rune)
@@ -84,9 +89,9 @@ func main() {
 	// timer channel
 	ct := make(chan rune)
 
-	speed := 1
+	// speed := 1
 	go keys_in(ck)
-	go t_timer(ct, speed)
+	go t_timer(ct, stats.speed)
 
 	for keep_going := true; keep_going == true; {
 
@@ -131,7 +136,7 @@ func main() {
 		// move block
 		block_status := 0
 
-		blocked := check_collisions( well,  tetronimo , operation)
+		blocked := check_collisions(well, tetronimo, operation)
 
 		if blocked == true {
 			if operation == "dropone" {
@@ -154,7 +159,7 @@ func main() {
 			case operation == "dropone":
 				tetronimo.height--
 			case operation == "harddrop":
-				sound_depth( tetronimo, well )
+				sound_depth(tetronimo, well)
 				block_status = 2
 			}
 
@@ -176,8 +181,8 @@ func main() {
 				}
 			}
 
-			clear_debris( well, score)
-			block_id = new_block(well, tetronimo , score )
+			clear_debris(well, stats)
+			block_id = new_block(well, tetronimo, stats)
 			draw_debris(well)
 			if block_id == 8 {
 				keep_going = false
@@ -186,35 +191,19 @@ func main() {
 		}
 
 		// speedup
-		if score[0][2] > 0 {
-			speed = int(score[0][2] / 10)
-			if speed == 0 {
-				speed = 1
+		if stats.rows > 0 {
+			stats.speed = int(stats.rows / 10)
+			if stats.speed == 0 {
+				stats.speed = 1
 			}
 		}
 
-		show_stats(4, "tetronimos: ", score[0][0])
-		show_stats(5, "blocks    : ", score[0][1])
-		show_stats(6, "rows      : ", score[0][2])
-
-		show_stats(8, "tet O     : ", score[1][0])
-		show_stats(9, "tet T     : ", score[1][1])
-		show_stats(10, "tet L     : ", score[1][2])
-		show_stats(11, "tet J     : ", score[1][3])
-		show_stats(12, "tet S     : ", score[1][4])
-		show_stats(13, "tet Z     : ", score[1][5])
-		show_stats(14, "tet I     : ", score[1][6])
-
-		show_stats(16, "speed     : ", speed)
-
-		// someint := int(somechar)
-		// show_stats(18, "keypress  : ", someint)
-
+		show_stats(stats)
 		tb.Flush()
 
 		switch {
 		case action == "timeoff":
-			go t_timer(ct, speed)
+			go t_timer(ct, stats.speed)
 		case action == "keyboard":
 			go keys_in(ck)
 		}
@@ -222,17 +211,7 @@ func main() {
 	}
 
 	tb.Close()
-	fmt.Print("tetronimos: ", score[0][0], "\n")
-	fmt.Print("blocks    : ", score[0][1], "\n")
-	fmt.Print("rows      : ", score[0][2], "\n")
-	fmt.Print("speed     : ", speed, "\n")
-	fmt.Print("tet O     : ", score[1][0], "\n")
-	fmt.Print("tet T     : ", score[1][1], "\n")
-	fmt.Print("tet L     : ", score[1][2], "\n")
-	fmt.Print("tet J     : ", score[1][3], "\n")
-	fmt.Print("tet S     : ", score[1][4], "\n")
-	fmt.Print("tet Z     : ", score[1][5], "\n")
-	fmt.Print("tet I     : ", score[1][6], "\n")
+	end_stats(stats)
 	fmt.Print("Game over\n")
 	os.Exit(0)
 
@@ -246,18 +225,54 @@ func debug_stats(height int, show_text string, show_val int) {
 
 }
 
-func show_stats(height int, show_text string, show_val int) {
+func show_stats_old(height int, show_text string, show_val int) {
 
 	bh_status := fmt.Sprintf("%s : %d     ", show_text, show_val)
 	print_tb(0, height, 0, 0, bh_status)
 
 }
 
-func check_collisions( well *Well , this_tetronimo *Tetronimo , operation string) bool {
+func show_stats(stats *Stats) {
 
-	ghost_tetronimo := new( Tetronimo )
-	set_tetronimo( ghost_tetronimo , len(this_tetronimo.shape) )
-	clone_tetronimo( this_tetronimo , ghost_tetronimo )
+	print_tb(0, 4, 0, 0, fmt.Sprintf("tetronimos : %d     ", stats.t_count))
+	print_tb(0, 5, 0, 0, fmt.Sprintf("blocks     : %d     ", stats.b_count))
+	print_tb(0, 6, 0, 0, fmt.Sprintf("rows       : %d     ", stats.rows))
+	print_tb(0, 7, 0, 0, fmt.Sprintf("score      : %d     ", stats.score))
+	print_tb(0, 8, 0, 0, fmt.Sprintf("speed      : %d     ", stats.speed))
+
+	print_tb(0, 10, 0, 0, fmt.Sprintf("tet O      : %d     ", stats.t_types[0]))
+	print_tb(0, 11, 0, 0, fmt.Sprintf("tet T      : %d     ", stats.t_types[1]))
+	print_tb(0, 12, 0, 0, fmt.Sprintf("tet L      : %d     ", stats.t_types[2]))
+	print_tb(0, 13, 0, 0, fmt.Sprintf("tet J      : %d     ", stats.t_types[3]))
+	print_tb(0, 14, 0, 0, fmt.Sprintf("tet S      : %d     ", stats.t_types[4]))
+	print_tb(0, 15, 0, 0, fmt.Sprintf("tet Z      : %d     ", stats.t_types[5]))
+	print_tb(0, 16, 0, 0, fmt.Sprintf("tet I      : %d     ", stats.t_types[6]))
+
+}
+
+func end_stats(stats *Stats) {
+
+	fmt.Printf("tetronimos : %d\n", stats.t_count)
+	fmt.Printf("blocks     : %d\n", stats.b_count)
+	fmt.Printf("rows       : %d\n", stats.rows)
+	fmt.Printf("score      : %d\n", stats.score)
+	fmt.Printf("speed      : %d\n", stats.speed)
+
+	fmt.Printf("tet O      : %d\n", stats.t_types[0])
+	fmt.Printf("tet T      : %d\n", stats.t_types[1])
+	fmt.Printf("tet L      : %d\n", stats.t_types[2])
+	fmt.Printf("tet J      : %d\n", stats.t_types[3])
+	fmt.Printf("tet S      : %d\n", stats.t_types[4])
+	fmt.Printf("tet Z      : %d\n", stats.t_types[5])
+	fmt.Printf("tet I      : %d\n", stats.t_types[6])
+
+}
+
+func check_collisions(well *Well, this_tetronimo *Tetronimo, operation string) bool {
+
+	ghost_tetronimo := new(Tetronimo)
+	set_tetronimo(ghost_tetronimo, len(this_tetronimo.shape))
+	clone_tetronimo(this_tetronimo, ghost_tetronimo)
 
 	switch {
 	case operation == "left":
@@ -298,15 +313,15 @@ func check_collisions( well *Well , this_tetronimo *Tetronimo , operation string
 	return false
 }
 
-func sound_depth( this_tetronimo *Tetronimo, well *Well) {
+func sound_depth(this_tetronimo *Tetronimo, well *Well) {
 
-	ghost_tetronimo := new( Tetronimo )
-	set_tetronimo( ghost_tetronimo , len(this_tetronimo.shape) )
-	clone_tetronimo( this_tetronimo , ghost_tetronimo )
+	ghost_tetronimo := new(Tetronimo)
+	set_tetronimo(ghost_tetronimo, len(this_tetronimo.shape))
+	clone_tetronimo(this_tetronimo, ghost_tetronimo)
 
 	for ghost_height := ghost_tetronimo.height; ghost_height >= 0; ghost_height-- {
 		ghost_tetronimo.height = ghost_height
-		blocked := check_collisions(well , ghost_tetronimo, "dropone")
+		blocked := check_collisions(well, ghost_tetronimo, "dropone")
 		if blocked == true {
 			this_tetronimo.height = ghost_height
 			return
@@ -315,7 +330,7 @@ func sound_depth( this_tetronimo *Tetronimo, well *Well) {
 
 }
 
-func draw_block( well *Well, operation string, this_tetronimo *Tetronimo ) {
+func draw_block(well *Well, operation string, this_tetronimo *Tetronimo) {
 
 	well_depth := len(well.debris_map)
 
@@ -342,7 +357,7 @@ func draw_block( well *Well, operation string, this_tetronimo *Tetronimo ) {
 
 }
 
-func draw_border( well *Well ) {
+func draw_border(well *Well) {
 
 	// terminal size
 	term_col, term_row := tb.Size()
@@ -384,12 +399,12 @@ func draw_border( well *Well ) {
 
 }
 
-func new_block( well *Well, tetronimo *Tetronimo , score [][]int ) int {
+func new_block(well *Well, tetronimo *Tetronimo, stats *Stats) int {
 
-	tetronimo.height    = len(well.debris_map) - 1
+	tetronimo.height = len(well.debris_map) - 1
 	tetronimo.longitude = len(well.debris_map[0]) / 2
 
-	rand_block( tetronimo , score )
+	rand_block(tetronimo, stats)
 
 	for t_vert := range tetronimo.shape {
 		for t_horz := range tetronimo.shape[t_vert] {
@@ -429,7 +444,7 @@ func draw_debris(well *Well) {
 	}
 
 }
-func clear_debris( well *Well , score [][]int) {
+func clear_debris(well *Well, stats *Stats) {
 
 	deb_height := len(well.debris_map)
 	well_width := len(well.debris_map[0])
@@ -455,7 +470,7 @@ func clear_debris( well *Well , score [][]int) {
 		return
 	}
 
-	score[0][2] += delete_rows
+	stats.rows += delete_rows
 
 	new_debris := make([][]tb.Attribute, len(well.debris_map))
 	new_rows := 0
@@ -479,7 +494,7 @@ func clear_debris( well *Well , score [][]int) {
 
 }
 
-func rand_block( this_tetronimo *Tetronimo, score [][]int ) {
+func rand_block(this_tetronimo *Tetronimo, stats *Stats) {
 
 	set_count := 7
 
@@ -489,9 +504,9 @@ func rand_block( this_tetronimo *Tetronimo, score [][]int ) {
 		tetro_def := make([][]tb.Attribute, 2)
 		tetronimo_set[set_num] = tetro_def
 
-		tetro_row := make([][]tb.Attribute, len(this_tetronimo.shape) )
-		for i := 0; i < len(this_tetronimo.shape) ; i++ {
-			tetro_col := make([]tb.Attribute, len(this_tetronimo.shape) )
+		tetro_row := make([][]tb.Attribute, len(this_tetronimo.shape))
+		for i := 0; i < len(this_tetronimo.shape); i++ {
+			tetro_col := make([]tb.Attribute, len(this_tetronimo.shape))
 			tetro_row[i] = tetro_col
 		}
 		tetronimo_set[set_num] = tetro_row
@@ -557,21 +572,21 @@ func rand_block( this_tetronimo *Tetronimo, score [][]int ) {
 		}
 	}
 
-	score[0][0] += 1
-	score[0][1] += b_count
-	score[1][rand_tetro] += 1
+	stats.t_count += 1
+	stats.b_count += b_count
+	stats.t_types[rand_tetro] += 1
 
 }
 
-func rotate_tetronimo( this_tetronimo *Tetronimo ) {
+func rotate_tetronimo(this_tetronimo *Tetronimo) {
 
-	hold_tetronimo := new( Tetronimo )
-	set_tetronimo( hold_tetronimo , len(this_tetronimo.shape) )
-	clone_tetronimo( this_tetronimo , hold_tetronimo )
+	hold_tetronimo := new(Tetronimo)
+	set_tetronimo(hold_tetronimo, len(this_tetronimo.shape))
+	clone_tetronimo(this_tetronimo, hold_tetronimo)
 
 	// rotate
-	tl_tetronimo := new( Tetronimo )
-	set_tetronimo( tl_tetronimo , len(this_tetronimo.shape) )
+	tl_tetronimo := new(Tetronimo)
+	set_tetronimo(tl_tetronimo, len(this_tetronimo.shape))
 	for row := range hold_tetronimo.shape {
 		rotated_col := (len(hold_tetronimo.shape) - 1) - row
 		for col := range hold_tetronimo.shape[row] {
@@ -653,7 +668,7 @@ func print_tb(x, y int, fg, bg tb.Attribute, msg string) {
 	tb.Flush()
 }
 
-func clone_tetronimo( orig_tetronimo , new_tetronimo *Tetronimo ) {
+func clone_tetronimo(orig_tetronimo, new_tetronimo *Tetronimo) {
 
 	new_tetronimo.height = orig_tetronimo.height
 	new_tetronimo.longitude = orig_tetronimo.longitude
@@ -666,7 +681,7 @@ func clone_tetronimo( orig_tetronimo , new_tetronimo *Tetronimo ) {
 
 }
 
-func set_tetronimo( tetronimo *Tetronimo , t_size int ) {
+func set_tetronimo(tetronimo *Tetronimo, t_size int) {
 
 	this_tetronimo := make([][]tb.Attribute, t_size)
 	for i := 0; i < t_size; i++ {
@@ -680,14 +695,23 @@ func set_tetronimo( tetronimo *Tetronimo , t_size int ) {
 
 }
 
-func set_well( well *Well , well_depth , well_width int ) {
+func set_well(well *Well, well_depth, well_width int) {
 
-	this_well := make([][]tb.Attribute, well_depth )
+	this_well := make([][]tb.Attribute, well_depth)
 	for i := 0; i < well_depth; i++ {
-		this_row := make([]tb.Attribute, well_width )
+		this_row := make([]tb.Attribute, well_width)
 		this_well[i] = this_row
 	}
 
 	well.debris_map = this_well
+
+}
+
+func set_stats(stats *Stats, set_count, speed int) {
+
+	t_types := make([]int, set_count)
+
+	stats.t_types = t_types
+	stats.speed = speed
 
 }
