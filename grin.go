@@ -11,7 +11,6 @@ import tb "github.com/nsf/termbox-go"
 
 /*
 	TODO:
-		Cleanup functions, data objects?
 		Change tetronimo shape from grid to vector?
 		High scores in sqlite?
 	Improvements:
@@ -32,6 +31,7 @@ import tb "github.com/nsf/termbox-go"
 				0 points for clearing rows
 		Print score, stats on exit
 		*** CONVERT FROM goncurses to termbox
+		Cleanup functions, data objects (can always refactor)
 */
 
 type Tetronimo struct {
@@ -49,7 +49,6 @@ type Stats struct {
 	b_count int // block count
 	score   int
 	rows    int
-	speed   int
 	t_types []int
 }
 
@@ -62,7 +61,7 @@ func main() {
 	}
 	defer tb.Close()
 
-	// tetromino
+	// define tetromino
 	t_size := 4
 	tetronimo := new(Tetronimo)
 	set_tetronimo(tetronimo, t_size)
@@ -74,139 +73,68 @@ func main() {
 	set_well(well, well_depth, well_width)
 	draw_border(well)
 
-	// stats
-	speed := 1
-	set_count := 7
+	// define stats
+	set_count := 7 // number of tetronimos in our set
 	stats := new(Stats)
-	set_stats(stats, set_count, speed)
+	set_stats(stats, set_count)
 
 	// starting block
-	block_id := new_block(well, tetronimo, stats)
+	_ = new_block(well, tetronimo, stats)
 
 	// keyboard channel
 	ck := make(chan rune)
+	go keys_in(ck)
 
 	// timer channel
+	starting_speed := 1
 	ct := make(chan rune)
+	go t_timer(ct, starting_speed)
 
-	// speed := 1
-	go keys_in(ck)
-	go t_timer(ct, stats.speed)
-
+	// main game loop
 	for keep_going := true; keep_going == true; {
 
-		var action string
+		// get input from keyboard or timer
 		var somechar rune
 		select {
 		case somechar = <-ct:
-			action = "timeoff"
+			go t_timer(ct, get_speed(stats))
 		case somechar = <-ck:
-			action = "keyboard"
+			go keys_in(ck)
 		}
 
-		operation := "hold"
-		pause := false
-		switch {
-		case somechar == 113: // q
-			keep_going = false
-		case somechar == 106: // j
-			operation = "left"
-		case somechar == 108: // l
-			operation = "right"
-		case somechar == 110: // n
-			operation = "dropone"
-		case somechar == 112: // p
-			pause = true
-		case somechar == 107: // k
-			operation = "rotate"
-		case somechar == 0: // 32: // [space]
-			operation = "harddrop"
-		case somechar == 200: // TESTING
-		}
+		// act on input
+		operation := get_key(somechar)
 
-		if keep_going == false {
+		// quit
+		if operation == "quit" {
 			break
 		}
 
 		// pause
-		if pause == true {
+		if operation == "pause" {
 			_ = tb.PollEvent().Ch
 		}
 
-		// move block
-		block_status := 0
+		// attempt to move block
+		block_status := block_action(well, tetronimo, operation)
 
-		blocked := check_collisions(well, tetronimo, operation)
+		// new block
+		if block_status == "stuck" {
 
-		if blocked == true {
-			if operation == "dropone" {
-				block_status = 2
-			} else {
-				block_status = 1
-			}
-		} else {
-
-			draw_block(well, "erase", tetronimo)
-
-			block_status = 0
-			switch {
-			case operation == "left":
-				tetronimo.longitude--
-			case operation == "right":
-				tetronimo.longitude++
-			case operation == "rotate":
-				rotate_tetronimo(tetronimo)
-			case operation == "dropone":
-				tetronimo.height--
-			case operation == "harddrop":
-				sound_depth(tetronimo, well)
-				block_status = 2
-			}
-
-			draw_block(well, "draw", tetronimo)
-
-		}
-
-		// new block?
-		if block_status == 2 {
-
-			// new struct method
-			for t_vert := range tetronimo.shape {
-				for t_horz := range tetronimo.shape[t_vert] {
-					t_bit_vert := tetronimo.height - t_vert
-					t_bit_horz := tetronimo.longitude + t_horz
-					if tetronimo.shape[t_vert][t_horz] > 0 {
-						well.debris_map[t_bit_vert][t_bit_horz] = tetronimo.shape[t_vert][t_horz]
-					}
-				}
-			}
-
+			create_debris(well, tetronimo)
 			clear_debris(well, stats)
-			block_id = new_block(well, tetronimo, stats)
 			draw_debris(well)
-			if block_id == 8 {
+
+			// game over if new block collides with debris
+			blocked := new_block(well, tetronimo, stats)
+			if blocked == true {
 				keep_going = false
 			}
 
 		}
 
-		// speedup
-		if stats.rows > 0 {
-			stats.speed = int(stats.rows / 10)
-			if stats.speed == 0 {
-				stats.speed = 1
-			}
-		}
-
 		show_stats(stats)
 		tb.Flush()
-
-		switch {
-		case action == "timeoff":
-			go t_timer(ct, stats.speed)
-		case action == "keyboard":
-			go keys_in(ck)
-		}
 
 	}
 
@@ -225,20 +153,13 @@ func debug_stats(height int, show_text string, show_val int) {
 
 }
 
-func show_stats_old(height int, show_text string, show_val int) {
-
-	bh_status := fmt.Sprintf("%s : %d     ", show_text, show_val)
-	print_tb(0, height, 0, 0, bh_status)
-
-}
-
 func show_stats(stats *Stats) {
 
 	print_tb(0, 4, 0, 0, fmt.Sprintf("tetronimos : %d     ", stats.t_count))
 	print_tb(0, 5, 0, 0, fmt.Sprintf("blocks     : %d     ", stats.b_count))
 	print_tb(0, 6, 0, 0, fmt.Sprintf("rows       : %d     ", stats.rows))
 	print_tb(0, 7, 0, 0, fmt.Sprintf("score      : %d     ", stats.score))
-	print_tb(0, 8, 0, 0, fmt.Sprintf("speed      : %d     ", stats.speed))
+	print_tb(0, 8, 0, 0, fmt.Sprintf("speed      : %d     ", get_speed(stats)))
 
 	print_tb(0, 10, 0, 0, fmt.Sprintf("tet O      : %d     ", stats.t_types[0]))
 	print_tb(0, 11, 0, 0, fmt.Sprintf("tet T      : %d     ", stats.t_types[1]))
@@ -256,7 +177,7 @@ func end_stats(stats *Stats) {
 	fmt.Printf("blocks     : %d\n", stats.b_count)
 	fmt.Printf("rows       : %d\n", stats.rows)
 	fmt.Printf("score      : %d\n", stats.score)
-	fmt.Printf("speed      : %d\n", stats.speed)
+	fmt.Printf("speed      : %d\n", get_speed(stats))
 
 	fmt.Printf("tet O      : %d\n", stats.t_types[0])
 	fmt.Printf("tet T      : %d\n", stats.t_types[1])
@@ -270,22 +191,15 @@ func end_stats(stats *Stats) {
 
 func check_collisions(well *Well, this_tetronimo *Tetronimo, operation string) bool {
 
+	if operation == "harddrop" {
+		return false
+	}
+
 	ghost_tetronimo := new(Tetronimo)
 	set_tetronimo(ghost_tetronimo, len(this_tetronimo.shape))
 	clone_tetronimo(this_tetronimo, ghost_tetronimo)
 
-	switch {
-	case operation == "left":
-		ghost_tetronimo.longitude--
-	case operation == "right":
-		ghost_tetronimo.longitude++
-	case operation == "rotate":
-		rotate_tetronimo(ghost_tetronimo)
-	case operation == "dropone":
-		ghost_tetronimo.height--
-	case operation == "harddrop":
-		return false
-	}
+	move_block(ghost_tetronimo, well, operation)
 
 	for t_vert := range ghost_tetronimo.shape {
 		for t_horz := range ghost_tetronimo.shape[t_vert] {
@@ -311,6 +225,21 @@ func check_collisions(well *Well, this_tetronimo *Tetronimo, operation string) b
 	}
 
 	return false
+}
+
+func move_block(tetronimo *Tetronimo, well *Well, operation string) {
+	switch {
+	case operation == "left":
+		tetronimo.longitude--
+	case operation == "right":
+		tetronimo.longitude++
+	case operation == "rotate":
+		rotate_tetronimo(tetronimo)
+	case operation == "dropone":
+		tetronimo.height--
+	case operation == "harddrop":
+		sound_depth(tetronimo, well)
+	}
 }
 
 func sound_depth(this_tetronimo *Tetronimo, well *Well) {
@@ -399,7 +328,7 @@ func draw_border(well *Well) {
 
 }
 
-func new_block(well *Well, tetronimo *Tetronimo, stats *Stats) int {
+func new_block(well *Well, tetronimo *Tetronimo, stats *Stats) bool {
 
 	tetronimo.height = len(well.debris_map) - 1
 	tetronimo.longitude = len(well.debris_map[0]) / 2
@@ -412,13 +341,13 @@ func new_block(well *Well, tetronimo *Tetronimo, stats *Stats) int {
 			t_bit_horz := tetronimo.longitude + t_horz
 			if tetronimo.shape[t_vert][t_horz] > 0 {
 				if well.debris_map[t_bit_vert][t_bit_horz] > 0 {
-					return 8 // game over!
+					return true // game over!
 				}
 			}
 		}
 	}
 
-	return 0
+	return false
 
 }
 
@@ -444,6 +373,7 @@ func draw_debris(well *Well) {
 	}
 
 }
+
 func clear_debris(well *Well, stats *Stats) {
 
 	deb_height := len(well.debris_map)
@@ -475,9 +405,7 @@ func clear_debris(well *Well, stats *Stats) {
 	new_debris := make([][]tb.Attribute, len(well.debris_map))
 	new_rows := 0
 	for d_vert := range well.debris_map {
-		if clear_rows[d_vert] == 1 {
-			// do nothing
-		} else {
+		if clear_rows[d_vert] != 1 {
 			new_debris[new_rows] = well.debris_map[d_vert]
 			new_rows++
 		}
@@ -558,8 +486,6 @@ func rand_block(this_tetronimo *Tetronimo, stats *Stats) {
 
 	rand.Seed(time.Now().Unix())
 	rand_tetro := rand.Intn(set_count)
-	// rand_tetro := 6  // TESTING i block
-	// rand_tetro := 0  // TESTING o block
 
 	b_count := 0
 	for row := range this_tetronimo.shape {
@@ -576,6 +502,31 @@ func rand_block(this_tetronimo *Tetronimo, stats *Stats) {
 	stats.b_count += b_count
 	stats.t_types[rand_tetro] += 1
 
+}
+
+func block_action(well *Well, tetronimo *Tetronimo, operation string) string {
+
+	block_status := "free"
+
+	blocked := check_collisions(well, tetronimo, operation)
+	if blocked == true {
+		if operation == "dropone" {
+			block_status = "stuck"
+		}
+		return block_status
+	}
+
+	draw_block(well, "erase", tetronimo)
+
+	move_block(tetronimo, well, operation)
+
+	if operation == "harddrop" {
+		block_status = "stuck"
+	}
+
+	draw_block(well, "draw", tetronimo)
+
+	return block_status
 }
 
 func rotate_tetronimo(this_tetronimo *Tetronimo) {
@@ -613,11 +564,7 @@ func rotate_tetronimo(this_tetronimo *Tetronimo) {
 	if col_left == 0 {
 		col_offset = 1
 	}
-	/*
-		if top_row == 0 {
-			row_offset = 1
-		}
-	*/
+
 	if row_offset > 2 {
 		row_offset = 2
 	}
@@ -636,6 +583,20 @@ func rotate_tetronimo(this_tetronimo *Tetronimo) {
 				} else {
 					this_tetronimo.shape[this_row][this_col] = tl_tetronimo.shape[row][col]
 				}
+			}
+		}
+	}
+
+}
+
+func create_debris(well *Well, tetronimo *Tetronimo) {
+
+	for t_vert := range tetronimo.shape {
+		for t_horz := range tetronimo.shape[t_vert] {
+			t_bit_vert := tetronimo.height - t_vert
+			t_bit_horz := tetronimo.longitude + t_horz
+			if tetronimo.shape[t_vert][t_horz] > 0 {
+				well.debris_map[t_bit_vert][t_bit_horz] = tetronimo.shape[t_vert][t_horz]
 			}
 		}
 	}
@@ -707,11 +668,39 @@ func set_well(well *Well, well_depth, well_width int) {
 
 }
 
-func set_stats(stats *Stats, set_count, speed int) {
+func set_stats(stats *Stats, set_count int) {
 
 	t_types := make([]int, set_count)
 
 	stats.t_types = t_types
-	stats.speed = speed
 
+}
+
+func get_key(somechar rune) string {
+
+	switch {
+	case somechar == 113: // q
+		return "quit"
+	case somechar == 106: // j
+		return "left"
+	case somechar == 108: // l
+		return "right"
+	case somechar == 110: // n
+		return "dropone"
+	case somechar == 112: // p
+		return "pause"
+	case somechar == 107: // k
+		return "rotate"
+	case somechar == 0: // [space]
+		return "harddrop"
+	}
+	return "hold" // do nothing
+}
+
+func get_speed(stats *Stats) int {
+	speed := 1
+	if stats.rows > 10 {
+		speed = int(stats.rows / 10)
+	}
+	return speed
 }
