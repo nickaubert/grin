@@ -36,13 +36,13 @@ import tb "github.com/nsf/termbox-go"
 */
 
 type Tetronimo struct {
-	shape     [][]tb.Attribute
+	shape     [][]int
 	height    int
 	longitude int
 }
 
 type Well struct {
-	debris_map [][]tb.Attribute
+	debris_map [][]int
 }
 
 type Stats struct {
@@ -260,7 +260,7 @@ func sound_depth(this_tetronimo *Tetronimo, well *Well) {
 
 }
 
-func draw_block(well *Well, operation string, this_tetronimo *Tetronimo) {
+func draw_tetronimo(well *Well, operation string, this_tetronimo *Tetronimo) {
 
 	well_depth := len(well.debris_map)
 
@@ -275,7 +275,7 @@ func draw_block(well *Well, operation string, this_tetronimo *Tetronimo) {
 			if this_tetronimo.shape[t_vert][t_horz] > 0 {
 				color := tb.ColorDefault
 				if operation == "draw" {
-					color = this_tetronimo.shape[t_vert][t_horz]
+					color = set_color(this_tetronimo.shape[t_vert][t_horz])
 				}
 				height := (well_bottom - this_tetronimo.height + t_vert)
 				longitude := (well_left + (this_tetronimo.longitude * 2) + (t_horz * 2))
@@ -362,14 +362,10 @@ func draw_debris(well *Well) {
 		for col := range well.debris_map[row] {
 			row_loc := vert_headroom + len(well.debris_map) - row
 			col_loc := ((term_col / 2) - len(well.debris_map[0])) + (col * 2)
-			if well.debris_map[row][col] > 0 {
-				color := well.debris_map[row][col]
-				tb.SetCell(col_loc, row_loc, 0, 0, color)
-				tb.SetCell(col_loc+1, row_loc, 0, 0, color)
-			} else {
-				tb.SetCell(col_loc, row_loc, 0, 0, tb.ColorDefault)
-				tb.SetCell(col_loc+1, row_loc, 0, 0, tb.ColorDefault)
-			}
+
+			color := set_color(well.debris_map[row][col])
+			tb.SetCell(col_loc, row_loc, 0, 0, color)
+			tb.SetCell(col_loc+1, row_loc, 0, 0, color)
 		}
 	}
 
@@ -403,7 +399,7 @@ func clear_debris(well *Well, stats *Stats) {
 
 	stats.rows += delete_rows
 
-	new_debris := make([][]tb.Attribute, len(well.debris_map))
+	new_debris := make([][]int, len(well.debris_map))
 	new_rows := 0
 	for d_vert := range well.debris_map {
 		if clear_rows[d_vert] != 1 {
@@ -413,7 +409,7 @@ func clear_debris(well *Well, stats *Stats) {
 	}
 
 	for i := (len(well.debris_map) - delete_rows); i < len(well.debris_map); i++ {
-		fresh_row := make([]tb.Attribute, well_width)
+		fresh_row := make([]int, well_width)
 		new_debris[i] = fresh_row
 	}
 
@@ -427,15 +423,15 @@ func rand_block(this_tetronimo *Tetronimo, stats *Stats) {
 
 	set_count := 7
 
-	tetronimo_set := make([][][]tb.Attribute, set_count+1)
+	tetronimo_set := make([][][]int, set_count+1)
 	for set_num := 0; set_num <= set_count; set_num++ {
 
-		tetro_def := make([][]tb.Attribute, 2)
+		tetro_def := make([][]int, 2)
 		tetronimo_set[set_num] = tetro_def
 
-		tetro_row := make([][]tb.Attribute, len(this_tetronimo.shape))
+		tetro_row := make([][]int, len(this_tetronimo.shape))
 		for i := 0; i < len(this_tetronimo.shape); i++ {
-			tetro_col := make([]tb.Attribute, len(this_tetronimo.shape))
+			tetro_col := make([]int, len(this_tetronimo.shape))
 			tetro_row[i] = tetro_col
 		}
 		tetronimo_set[set_num] = tetro_row
@@ -444,46 +440,46 @@ func rand_block(this_tetronimo *Tetronimo, stats *Stats) {
 	// there is no tetronimo_set[0]
 
 	// define "O" block
-	tetronimo_set[1][0][0] = tb.ColorBlue
-	tetronimo_set[1][0][1] = tb.ColorBlue
-	tetronimo_set[1][1][0] = tb.ColorBlue
-	tetronimo_set[1][1][1] = tb.ColorBlue
+	tetronimo_set[1][0][0] = 1
+	tetronimo_set[1][0][1] = 1
+	tetronimo_set[1][1][0] = 1
+	tetronimo_set[1][1][1] = 1
 
 	// define "T" block
-	tetronimo_set[2][0][0] = tb.ColorYellow
-	tetronimo_set[2][0][1] = tb.ColorYellow
-	tetronimo_set[2][0][2] = tb.ColorYellow
-	tetronimo_set[2][1][1] = tb.ColorYellow
+	tetronimo_set[2][0][0] = 2
+	tetronimo_set[2][0][1] = 2
+	tetronimo_set[2][0][2] = 2
+	tetronimo_set[2][1][1] = 2
 
 	// define "L" block
-	tetronimo_set[3][0][0] = tb.ColorMagenta
-	tetronimo_set[3][1][0] = tb.ColorMagenta
-	tetronimo_set[3][2][0] = tb.ColorMagenta
-	tetronimo_set[3][2][1] = tb.ColorMagenta
+	tetronimo_set[3][0][0] = 3
+	tetronimo_set[3][1][0] = 3
+	tetronimo_set[3][2][0] = 3
+	tetronimo_set[3][2][1] = 3
 
 	// define "J" block
-	tetronimo_set[4][0][1] = tb.ColorWhite
-	tetronimo_set[4][1][1] = tb.ColorWhite
-	tetronimo_set[4][2][0] = tb.ColorWhite
-	tetronimo_set[4][2][1] = tb.ColorWhite
+	tetronimo_set[4][0][1] = 4
+	tetronimo_set[4][1][1] = 4
+	tetronimo_set[4][2][0] = 4
+	tetronimo_set[4][2][1] = 4
 
 	// define "S" block
-	tetronimo_set[5][0][0] = tb.ColorGreen
-	tetronimo_set[5][1][0] = tb.ColorGreen
-	tetronimo_set[5][1][1] = tb.ColorGreen
-	tetronimo_set[5][2][1] = tb.ColorGreen
+	tetronimo_set[5][0][0] = 5
+	tetronimo_set[5][1][0] = 5
+	tetronimo_set[5][1][1] = 5
+	tetronimo_set[5][2][1] = 5
 
 	// define "Z" block
-	tetronimo_set[6][0][1] = tb.ColorCyan
-	tetronimo_set[6][1][0] = tb.ColorCyan
-	tetronimo_set[6][1][1] = tb.ColorCyan
-	tetronimo_set[6][2][0] = tb.ColorCyan
+	tetronimo_set[6][0][1] = 6
+	tetronimo_set[6][1][0] = 6
+	tetronimo_set[6][1][1] = 6
+	tetronimo_set[6][2][0] = 6
 
 	// define "I" block
-	tetronimo_set[7][0][0] = tb.ColorRed
-	tetronimo_set[7][1][0] = tb.ColorRed
-	tetronimo_set[7][2][0] = tb.ColorRed
-	tetronimo_set[7][3][0] = tb.ColorRed
+	tetronimo_set[7][0][0] = 7
+	tetronimo_set[7][1][0] = 7
+	tetronimo_set[7][2][0] = 7
+	tetronimo_set[7][3][0] = 7
 
 	rand.Seed(time.Now().Unix())
 	rand_tetro := rand.Intn(set_count)
@@ -517,7 +513,7 @@ func block_action(well *Well, tetronimo *Tetronimo, operation string) string {
 		return block_status
 	}
 
-	draw_block(well, "erase", tetronimo)
+	draw_tetronimo(well, "erase", tetronimo)
 
 	move_block(tetronimo, well, operation)
 
@@ -525,9 +521,10 @@ func block_action(well *Well, tetronimo *Tetronimo, operation string) string {
 		block_status = "stuck"
 	}
 
-	draw_block(well, "draw", tetronimo)
+	draw_tetronimo(well, "draw", tetronimo)
 
 	return block_status
+
 }
 
 func rotate_tetronimo(this_tetronimo *Tetronimo) {
@@ -606,9 +603,9 @@ func clone_tetronimo(orig_tetronimo, new_tetronimo *Tetronimo) {
 
 func set_tetronimo(tetronimo *Tetronimo, t_size int) {
 
-	this_tetronimo := make([][]tb.Attribute, t_size)
+	this_tetronimo := make([][]int, t_size)
 	for i := 0; i < t_size; i++ {
-		tetro_row := make([]tb.Attribute, t_size)
+		tetro_row := make([]int, t_size)
 		this_tetronimo[i] = tetro_row
 	}
 
@@ -620,9 +617,9 @@ func set_tetronimo(tetronimo *Tetronimo, t_size int) {
 
 func set_well(well *Well, well_depth, well_width int) {
 
-	this_well := make([][]tb.Attribute, well_depth)
+	this_well := make([][]int, well_depth)
 	for i := 0; i < well_depth; i++ {
-		this_row := make([]tb.Attribute, well_width)
+		this_row := make([]int, well_width)
 		this_well[i] = this_row
 	}
 
@@ -715,5 +712,32 @@ func topleft(this_tetronimo *Tetronimo) {
 	}
 
 	clone_tetronimo(ghost_tetronimo, this_tetronimo)
+
+}
+
+func set_color(color int) tb.Attribute {
+
+	var colorname tb.Attribute
+
+	switch {
+	case color == 0:
+		colorname = tb.ColorDefault
+	case color == 1:
+		colorname = tb.ColorBlue
+	case color == 2:
+		colorname = tb.ColorYellow
+	case color == 3:
+		colorname = tb.ColorMagenta
+	case color == 4:
+		colorname = tb.ColorWhite
+	case color == 5:
+		colorname = tb.ColorGreen
+	case color == 6:
+		colorname = tb.ColorCyan
+	case color == 7:
+		colorname = tb.ColorRed
+	}
+
+	return colorname
 
 }
