@@ -10,10 +10,8 @@ import "os"
 import tb "github.com/nsf/termbox-go"
 
 /*
-	TODO:
-		Change tetronimo shape from grid to vector?
-		High scores in sqlite?
 	Improvements:
+		High scores in sqlite?
 		arrow keys
 		Adjustible well size and tetronimo set
 		Random debris map at start
@@ -33,6 +31,7 @@ import tb "github.com/nsf/termbox-go"
 		Print score, stats on exit
 		*** CONVERT FROM goncurses to termbox
 		Cleanup functions, data objects (can always refactor)
+		Phantom blocks to fix rotation
 */
 
 type Tetronimo struct {
@@ -476,10 +475,12 @@ func rand_block(this_tetronimo *Tetronimo, stats *Stats) {
 	tetronimo_set[6][2][0] = 6
 
 	// define "I" block
-	tetronimo_set[7][0][0] = 7
-	tetronimo_set[7][1][0] = 7
-	tetronimo_set[7][2][0] = 7
-	tetronimo_set[7][3][0] = 7
+	tetronimo_set[7][0][1] = 7
+	tetronimo_set[7][1][1] = 7
+	tetronimo_set[7][2][1] = 7
+	tetronimo_set[7][3][1] = 7
+	tetronimo_set[7][1][0] = -1 // phantom blocks to help rotation
+	tetronimo_set[7][2][2] = -1
 
 	rand.Seed(time.Now().Unix())
 	rand_tetro := rand.Intn(set_count)
@@ -542,7 +543,7 @@ func rotate_tetronimo(this_tetronimo *Tetronimo) {
 		}
 	}
 
-	topleft(ghost_tetronimo)
+	top_left(ghost_tetronimo)
 
 	clone_tetronimo(ghost_tetronimo, this_tetronimo)
 
@@ -664,7 +665,7 @@ func get_speed(stats *Stats) int {
 	return speed
 }
 
-func topleft(this_tetronimo *Tetronimo) {
+func top_left(this_tetronimo *Tetronimo) {
 
 	row_top := 0
 	col_left := 0
@@ -720,6 +721,8 @@ func set_color(color int) tb.Attribute {
 	var colorname tb.Attribute
 
 	switch {
+	case color == -1:
+		colorname = tb.ColorDefault
 	case color == 0:
 		colorname = tb.ColorDefault
 	case color == 1:
