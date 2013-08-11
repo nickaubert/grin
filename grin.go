@@ -14,6 +14,7 @@ import tb "github.com/nsf/termbox-go"
 		Change tetronimo shape from grid to vector?
 		High scores in sqlite?
 	Improvements:
+		arrow keys
 		Adjustible well size and tetronimo set
 		Random debris map at start
 		Two players?
@@ -531,61 +532,22 @@ func block_action(well *Well, tetronimo *Tetronimo, operation string) string {
 
 func rotate_tetronimo(this_tetronimo *Tetronimo) {
 
-	hold_tetronimo := new(Tetronimo)
-	set_tetronimo(hold_tetronimo, len(this_tetronimo.shape))
-	clone_tetronimo(this_tetronimo, hold_tetronimo)
-
 	// rotate
-	tl_tetronimo := new(Tetronimo)
-	set_tetronimo(tl_tetronimo, len(this_tetronimo.shape))
-	for row := range hold_tetronimo.shape {
-		rotated_col := (len(hold_tetronimo.shape) - 1) - row
-		for col := range hold_tetronimo.shape[row] {
+	ghost_tetronimo := new(Tetronimo)
+	set_tetronimo(ghost_tetronimo, len(this_tetronimo.shape))
+	ghost_tetronimo.height = this_tetronimo.height
+	ghost_tetronimo.longitude = this_tetronimo.longitude
+	for row := range ghost_tetronimo.shape {
+		rotated_col := (len(ghost_tetronimo.shape) - 1) - row
+		for col := range ghost_tetronimo.shape[row] {
 			rotated_row := col
-			tl_tetronimo.shape[row][col] = hold_tetronimo.shape[rotated_row][rotated_col]
+			ghost_tetronimo.shape[row][col] = this_tetronimo.shape[rotated_row][rotated_col]
 		}
 	}
 
-	// push toward top left corner of grid
-	row_top := 0
-	col_left := 0
-	row_offset := 0
-	col_offset := 0
-	for row := range tl_tetronimo.shape {
-		for _, col_val := range tl_tetronimo.shape[row] {
-			row_top += int(col_val)
-		}
-		if row_top == 0 {
-			row_offset += 1
-		}
-		col_left += int(tl_tetronimo.shape[row][0])
-	}
+	topleft(ghost_tetronimo)
 
-	if col_left == 0 {
-		col_offset = 1
-	}
-
-	if row_offset > 2 {
-		row_offset = 2
-	}
-
-	for row := range tl_tetronimo.shape {
-		this_row := row - row_offset
-		if this_row < 0 {
-			for col := range tl_tetronimo.shape[row] {
-				this_tetronimo.shape[len(tl_tetronimo.shape)+this_row][col] = 0
-			}
-		} else {
-			for col := range tl_tetronimo.shape[this_row] {
-				this_col := col - col_offset
-				if this_col < 0 {
-					this_tetronimo.shape[this_row][len(tl_tetronimo.shape[row])-col_offset] = 0
-				} else {
-					this_tetronimo.shape[this_row][this_col] = tl_tetronimo.shape[row][col]
-				}
-			}
-		}
-	}
+	clone_tetronimo(ghost_tetronimo, this_tetronimo)
 
 }
 
@@ -703,4 +665,55 @@ func get_speed(stats *Stats) int {
 		speed = int(stats.rows / 10)
 	}
 	return speed
+}
+
+func topleft(this_tetronimo *Tetronimo) {
+
+	row_top := 0
+	col_left := 0
+	row_offset := 0
+	col_offset := 0
+	for row := range this_tetronimo.shape {
+		for _, col_val := range this_tetronimo.shape[row] {
+			row_top += int(col_val)
+		}
+		if row_top == 0 {
+			row_offset += 1
+		}
+		col_left += int(this_tetronimo.shape[row][0])
+	}
+
+	if col_left == 0 {
+		col_offset = 1
+	}
+
+	if row_offset > 2 {
+		row_offset = 2
+	}
+
+	ghost_tetronimo := new(Tetronimo)
+	set_tetronimo(ghost_tetronimo, len(this_tetronimo.shape))
+	ghost_tetronimo.height = this_tetronimo.height
+	ghost_tetronimo.longitude = this_tetronimo.longitude
+
+	for row := range this_tetronimo.shape {
+		this_row := row - row_offset
+		if this_row < 0 {
+			for col := range this_tetronimo.shape[row] {
+				ghost_tetronimo.shape[len(this_tetronimo.shape)+this_row][col] = 0
+			}
+		} else {
+			for col := range this_tetronimo.shape[this_row] {
+				this_col := col - col_offset
+				if this_col < 0 {
+					ghost_tetronimo.shape[this_row][len(this_tetronimo.shape[row])-col_offset] = 0
+				} else {
+					ghost_tetronimo.shape[this_row][this_col] = this_tetronimo.shape[row][col]
+				}
+			}
+		}
+	}
+
+	clone_tetronimo(ghost_tetronimo, this_tetronimo)
+
 }
