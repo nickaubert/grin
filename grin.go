@@ -12,7 +12,6 @@ import tb "github.com/nsf/termbox-go"
 /*
 	Improvements:
 		High scores in sqlite?
-		arrow keys
 		Adjustible well size and tetronimo set
 		Random debris map at start
 		Two players?
@@ -32,6 +31,7 @@ import tb "github.com/nsf/termbox-go"
 		*** CONVERT FROM goncurses to termbox
 		Cleanup functions, data objects (can always refactor)
 		Phantom blocks to fix rotation
+		Arrow key control
 */
 
 type Tetronimo struct {
@@ -82,28 +82,28 @@ func main() {
 	_ = new_block(well, tetronimo, stats)
 
 	// keyboard channel
-	ck := make(chan rune)
+	ck := make(chan string)
 	go keys_in(ck)
 
 	// timer channel
 	starting_speed := 1
-	ct := make(chan rune)
+	ct := make(chan string)
 	go t_timer(ct, starting_speed)
 
 	// main game loop
 	for keep_going := true; keep_going == true; {
 
 		// get input from keyboard or timer
-		var somechar rune
+		var operation string
 		select {
-		case somechar = <-ct:
+		case operation = <-ct:
 			go t_timer(ct, get_speed(stats))
-		case somechar = <-ck:
+		case operation = <-ck:
 			go keys_in(ck)
 		}
 
 		// act on input
-		operation := get_key(somechar)
+		// operation := get_key(somechar)
 
 		// quit
 		if operation == "quit" {
@@ -563,15 +563,19 @@ func create_debris(well *Well, tetronimo *Tetronimo) {
 
 }
 
-func keys_in(ck chan rune) {
-	char := tb.PollEvent().Ch
-	ck <- char
+func keys_in(ck chan string) {
+
+	key := tb.PollEvent()
+
+	operation := get_key(key)
+	ck <- operation
+
 }
 
-func t_timer(ct chan rune, speed int) {
+func t_timer(ct chan string, speed int) {
 	mseconds := time.Duration(1000 / speed)
 	time.Sleep(mseconds * time.Millisecond)
-	ct <- rune(110)
+	ct <- "dropone"
 }
 
 func error_out(message string) {
@@ -587,6 +591,15 @@ func print_tb(x, y int, fg, bg tb.Attribute, msg string) {
 		x++
 	}
 	tb.Flush()
+}
+
+func debug_tb(x, y int, fg, bg tb.Attribute, msg string) {
+	for _, c := range msg {
+		tb.SetCell(x, y, c, fg, bg)
+		x++
+	}
+	tb.Flush()
+	_ = tb.PollEvent().Ch
 }
 
 func clone_tetronimo(orig_tetronimo, new_tetronimo *Tetronimo) {
@@ -636,22 +649,34 @@ func set_stats(stats *Stats, set_count int) {
 
 }
 
-func get_key(somechar rune) string {
+func get_key(somekey tb.Event) string {
 
 	switch {
-	case somechar == 113: // q
+	case somekey.Ch == 113: // q
 		return "quit"
-	case somechar == 106: // j
+	case somekey.Ch == 106: // j
 		return "left"
-	case somechar == 108: // l
+	case somekey.Ch == 108: // l
 		return "right"
-	case somechar == 110: // n
+	case somekey.Ch == 110: // n
 		return "dropone"
-	case somechar == 112: // p
+	case somekey.Ch == 112: // p
 		return "pause"
-	case somechar == 107: // k
+	case somekey.Ch == 107: // k
 		return "rotate"
-	case somechar == 0: // [space]
+	case somekey.Key == tb.KeyArrowUp:
+		return "rotate"
+	case somekey.Key == tb.KeyArrowLeft:
+		return "left"
+	case somekey.Key == tb.KeyArrowRight:
+		return "right"
+	case somekey.Key == tb.KeyArrowDown:
+		return "dropone"
+	case somekey.Key == tb.KeyPgup:
+		return "pause"
+	case somekey.Key == tb.KeyPgdn:
+		return "harddrop"
+	case somekey.Ch == 0: // [space]
 		return "harddrop"
 	}
 	return "hold" // do nothing
@@ -742,5 +767,17 @@ func set_color(color int) tb.Attribute {
 	}
 
 	return colorname
+
+}
+
+func set_key(this_key tb.Event) rune {
+
+	var this_char rune
+	switch {
+	case this_key.Key == tb.KeyArrowLeft:
+		this_char = 106 // j
+	}
+
+	return this_char
 
 }
