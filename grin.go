@@ -6,6 +6,7 @@ import "fmt"
 import "math/rand"
 import "time"
 import "os"
+import "flag"
 
 import tb "github.com/nsf/termbox-go"
 
@@ -54,6 +55,13 @@ type Stats struct {
 
 func main() {
 
+	// some defaults
+	default_width := 10
+
+	// get arguments
+	well_width := flag.Int("w", default_width, "well width")
+	flag.Parse()
+
 	// init termbox
 	err := tb.Init()
 	if err != nil {
@@ -68,9 +76,11 @@ func main() {
 
 	// define well
 	well_depth := 20
-	well_width := 10
 	well := new(Well)
-	set_well(well, well_depth, well_width)
+	set_well(well, well_depth, *well_width)
+
+	// minimum window size before drawing borders
+	check_size(well, tetronimo)
 	draw_border(well)
 
 	// define stats
@@ -133,7 +143,7 @@ func main() {
 
 		}
 
-		show_stats(stats)
+		show_stats(stats, well)
 		tb.Flush()
 
 	}
@@ -153,21 +163,25 @@ func debug_stats(height int, show_text string, show_val int) {
 
 }
 
-func show_stats(stats *Stats) {
+func show_stats(stats *Stats, well *Well) {
 
-	print_tb(0, 4, 0, 0, fmt.Sprintf("tetronimos : %d     ", stats.t_count))
-	print_tb(0, 5, 0, 0, fmt.Sprintf("blocks     : %d     ", stats.b_count))
-	print_tb(0, 6, 0, 0, fmt.Sprintf("rows       : %d     ", stats.rows))
-	print_tb(0, 7, 0, 0, fmt.Sprintf("score      : %d     ", stats.score))
-	print_tb(0, 8, 0, 0, fmt.Sprintf("speed      : %d     ", get_speed(stats)))
+	well_depth := len(well.debris_map)
+	_, term_row := tb.Size()
+	vert_headroom := int((term_row-well_depth)/2) - 1
 
-	print_tb(0, 10, 0, 0, fmt.Sprintf("tet O      : %d     ", stats.t_types[0]))
-	print_tb(0, 11, 0, 0, fmt.Sprintf("tet T      : %d     ", stats.t_types[1]))
-	print_tb(0, 12, 0, 0, fmt.Sprintf("tet L      : %d     ", stats.t_types[2]))
-	print_tb(0, 13, 0, 0, fmt.Sprintf("tet J      : %d     ", stats.t_types[3]))
-	print_tb(0, 14, 0, 0, fmt.Sprintf("tet S      : %d     ", stats.t_types[4]))
-	print_tb(0, 15, 0, 0, fmt.Sprintf("tet Z      : %d     ", stats.t_types[5]))
-	print_tb(0, 16, 0, 0, fmt.Sprintf("tet I      : %d     ", stats.t_types[6]))
+	print_tb(0, vert_headroom+0, 0, 0, fmt.Sprintf("tetros : %d", stats.t_count))
+	print_tb(0, vert_headroom+1, 0, 0, fmt.Sprintf("blocks : %d", stats.b_count))
+	print_tb(0, vert_headroom+2, 0, 0, fmt.Sprintf("rows   : %d", stats.rows))
+	print_tb(0, vert_headroom+3, 0, 0, fmt.Sprintf("score  : %d", stats.score))
+	print_tb(0, vert_headroom+4, 0, 0, fmt.Sprintf("speed  : %d", get_speed(stats)))
+
+	print_tb(0, vert_headroom+6, 0, 0, fmt.Sprintf("tet O  : %d", stats.t_types[0]))
+	print_tb(0, vert_headroom+7, 0, 0, fmt.Sprintf("tet T  : %d", stats.t_types[1]))
+	print_tb(0, vert_headroom+8, 0, 0, fmt.Sprintf("tet L  : %d", stats.t_types[2]))
+	print_tb(0, vert_headroom+9, 0, 0, fmt.Sprintf("tet J  : %d", stats.t_types[3]))
+	print_tb(0, vert_headroom+10, 0, 0, fmt.Sprintf("tet S  : %d", stats.t_types[4]))
+	print_tb(0, vert_headroom+11, 0, 0, fmt.Sprintf("tet Z  : %d", stats.t_types[5]))
+	print_tb(0, vert_headroom+12, 0, 0, fmt.Sprintf("tet I  : %d", stats.t_types[6]))
 
 }
 
@@ -293,10 +307,6 @@ func draw_border(well *Well) {
 
 	well_depth := len(well.debris_map)
 	well_width := len(well.debris_map[0])
-
-	if well_depth+1 >= term_row {
-		error_out("too short!\n")
-	}
 
 	vert_headroom := int((term_row-well_depth)/2) - 1
 
@@ -580,6 +590,7 @@ func t_timer(ct chan string, speed int) {
 
 func error_out(message string) {
 
+	tb.Close()
 	fmt.Print(message)
 	os.Exit(1)
 
@@ -779,5 +790,37 @@ func set_key(this_key tb.Event) rune {
 	}
 
 	return this_char
+
+}
+
+func check_size(well *Well, tetronimo *Tetronimo) {
+
+	if len(well.debris_map) < len(tetronimo.shape) {
+		error_string := fmt.Sprintf("Well is too small")
+		error_out(error_string)
+	}
+
+	if len(well.debris_map[0]) < len(tetronimo.shape[0]) {
+		error_string := fmt.Sprintf("Well is too small")
+		error_out(error_string)
+	}
+
+	term_width, term_height := tb.Size()
+
+	min_width := 15 + 2*len(well.debris_map[0])
+	if term_width < min_width {
+		error_string := fmt.Sprintf("Terminal window minimum width %d\n", min_width)
+		error_out(error_string)
+	}
+
+	min_height := 13
+	if min_height < len(well.debris_map)+1 {
+		min_height = len(well.debris_map) + 1
+	}
+
+	if term_height < min_height {
+		error_string := fmt.Sprintf("Terminal window minimum height %d\n", min_height)
+		error_out(error_string)
+	}
 
 }
