@@ -9,6 +9,7 @@ import "os"
 import "flag"
 
 import tb "github.com/nsf/termbox-go"
+import blocks "github.com/nickaubert/grin/blocks"
 
 /*
 	Improvements:
@@ -430,81 +431,21 @@ func clear_debris(well *Well, stats *Stats) {
 
 func rand_block(this_tetronimo *Tetronimo, stats *Stats) {
 
-	set_count := 7
-
-	tetronimo_set := make([][][]int, set_count+1)
-	for set_num := 0; set_num <= set_count; set_num++ {
-
-		tetro_def := make([][]int, 2)
-		tetronimo_set[set_num] = tetro_def
-
-		tetro_row := make([][]int, len(this_tetronimo.shape))
-		for i := 0; i < len(this_tetronimo.shape); i++ {
-			tetro_col := make([]int, len(this_tetronimo.shape))
-			tetro_row[i] = tetro_col
-		}
-		tetronimo_set[set_num] = tetro_row
+	var basic_set = [][][]int{
+		blocks.BasicO,
+		blocks.BasicT,
+		blocks.BasicL,
+		blocks.BasicJ,
+		blocks.BasicS,
+		blocks.BasicZ,
+		blocks.BasicI,
 	}
-
-	// there is no tetronimo_set[0]
-
-	// define "O" block
-	tetronimo_set[1][0][0] = 1
-	tetronimo_set[1][0][1] = 1
-	tetronimo_set[1][1][0] = 1
-	tetronimo_set[1][1][1] = 1
-
-	// define "T" block
-	tetronimo_set[2][0][0] = 2
-	tetronimo_set[2][0][1] = 2
-	tetronimo_set[2][0][2] = 2
-	tetronimo_set[2][1][1] = 2
-
-	// define "L" block
-	tetronimo_set[3][0][0] = 3
-	tetronimo_set[3][1][0] = 3
-	tetronimo_set[3][2][0] = 3
-	tetronimo_set[3][2][1] = 3
-
-	// define "J" block
-	tetronimo_set[4][0][1] = 4
-	tetronimo_set[4][1][1] = 4
-	tetronimo_set[4][2][0] = 4
-	tetronimo_set[4][2][1] = 4
-
-	// define "S" block
-	tetronimo_set[5][0][0] = 5
-	tetronimo_set[5][1][0] = 5
-	tetronimo_set[5][1][1] = 5
-	tetronimo_set[5][2][1] = 5
-
-	// define "Z" block
-	tetronimo_set[6][0][1] = 6
-	tetronimo_set[6][1][0] = 6
-	tetronimo_set[6][1][1] = 6
-	tetronimo_set[6][2][0] = 6
-
-	// define "I" block
-	tetronimo_set[7][0][1] = 7
-	tetronimo_set[7][1][1] = 7
-	tetronimo_set[7][2][1] = 7
-	tetronimo_set[7][3][1] = 7
-	tetronimo_set[7][1][0] = -1 // phantom blocks to help rotation
-	tetronimo_set[7][2][2] = -1
 
 	rand.Seed(time.Now().Unix())
-	rand_tetro := rand.Intn(set_count)
+	rand_tetro := rand.Intn(len(basic_set))
 
-	b_count := 0
-	for row := range this_tetronimo.shape {
-		for col := range this_tetronimo.shape[row] {
-			this_block := tetronimo_set[rand_tetro+1][row][col]
-			if this_block > 0 {
-				b_count++
-			}
-			this_tetronimo.shape[row][col] = this_block
-		}
-	}
+	b_count := 4 // assume always tetro for now
+	copy_shape(basic_set[rand_tetro], this_tetronimo.shape)
 
 	stats.t_count += 1
 	stats.b_count += b_count
@@ -617,13 +558,24 @@ func clone_tetronimo(orig_tetronimo, new_tetronimo *Tetronimo) {
 
 	new_tetronimo.height = orig_tetronimo.height
 	new_tetronimo.longitude = orig_tetronimo.longitude
+	copy_shape(orig_tetronimo.shape, new_tetronimo.shape)
 
-	for row := 0; row < len(orig_tetronimo.shape); row++ {
-		for col := 0; col < len(orig_tetronimo.shape[0]); col++ {
-			new_tetronimo.shape[row][col] = orig_tetronimo.shape[row][col]
+	/*
+		for row := 0; row < len(orig_tetronimo.shape); row++ {
+			for col := 0; col < len(orig_tetronimo.shape[0]); col++ {
+				new_tetronimo.shape[row][col] = orig_tetronimo.shape[row][col]
+			}
+		}
+	*/
+
+}
+
+func copy_shape(orig_shape, new_shape [][]int) {
+	for row := 0; row < len(orig_shape); row++ {
+		for col := 0; col < len(orig_shape[0]); col++ {
+			new_shape[row][col] = orig_shape[row][col]
 		}
 	}
-
 }
 
 func set_tetronimo(tetronimo *Tetronimo, t_size int) {
