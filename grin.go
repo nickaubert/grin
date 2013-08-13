@@ -58,9 +58,11 @@ func main() {
 
 	// some defaults
 	default_width := 10
+	default_depth := 20
 
 	// get arguments
 	well_width := flag.Int("w", default_width, "well width")
+	well_depth := flag.Int("d", default_depth, "well depth")
 	flag.Parse()
 
 	// init termbox
@@ -76,9 +78,8 @@ func main() {
 	set_tetronimo(tetronimo, t_size)
 
 	// define well
-	well_depth := 20
 	well := new(Well)
-	set_well(well, well_depth, *well_width)
+	set_well(well, *well_depth, *well_width)
 
 	// minimum window size before drawing borders
 	check_size(well, tetronimo)
