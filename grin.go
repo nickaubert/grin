@@ -26,8 +26,7 @@ import pieces "github.com/nickaubert/grin/pieces"
 		Screen cleanup
 		Keep score, stats
 			Tint:
-				1 point per level for each tetronimo
-				1 point per level for each distance dropped
+				( 1 point x speed ) per level for each distance dropped
 				0 points for clearing rows
 		Print score, stats on exit
 		*** CONVERT FROM goncurses to termbox
@@ -47,11 +46,12 @@ type Well struct {
 }
 
 type Stats struct {
-	p_count int // piece count
-	b_count int // block count
-	score   int
-	rows    int
-	t_types []int
+	p_count   int // piece count
+	b_count   int // block count
+	score     int
+	rows      int
+	t_types   []int
+	piece_set map[string]bool
 }
 
 func main() {
@@ -63,7 +63,7 @@ func main() {
 	// get arguments
 	well_width := flag.Int("w", default_width, "well width")
 	well_depth := flag.Int("d", default_depth, "well depth")
-	// huge_pieces := flag.Int("u", default_width, "Huge pieces")
+	use_huge := flag.Bool("u", false, "Use huge pieces")
 	flag.Parse()
 
 	// init termbox
@@ -73,7 +73,14 @@ func main() {
 	}
 	defer tb.Close()
 
-	// define piece
+	// define stats
+	stats := new(Stats)
+	set_count := 20 // need to figure this dynamically
+	set_stats(stats, set_count)
+	stats.piece_set["basic"] = true
+	stats.piece_set["huge"] = *use_huge
+
+	// define piece set
 	p_size := 4
 	piece := new(Tetronimo)
 	set_piece(piece, p_size)
@@ -85,12 +92,6 @@ func main() {
 	// minimum window size before drawing borders
 	check_size(well, piece)
 	draw_border(well)
-
-	// define stats
-	// set_count := 7 // number of pieces in our set
-	set_count := 11 // number of tetronimos in our set
-	stats := new(Stats)
-	set_stats(stats, set_count)
 
 	// starting block
 	_ = new_piece(well, piece, stats)
@@ -116,9 +117,6 @@ func main() {
 			go keys_in(ck)
 		}
 
-		// act on input
-		// operation := get_key(somechar)
-
 		// quit
 		if operation == "quit" {
 			break
@@ -130,6 +128,7 @@ func main() {
 		}
 
 		// attempt to move block
+		last_height := piece.height
 		block_status := block_action(well, piece, operation)
 
 		// new block
@@ -138,6 +137,12 @@ func main() {
 			create_debris(well, piece)
 			clear_debris(well, stats)
 			draw_debris(well)
+
+			points := last_height - piece.height
+			if points == 0 {
+				points = 1
+			}
+			stats.score += get_speed(stats) * points
 
 			// game over if new block collides with debris
 			blocked := new_piece(well, piece, stats)
@@ -207,10 +212,10 @@ func end_stats(stats *Stats) {
 
 }
 
-func check_collisions(well *Well, this_piece *Tetronimo, operation string) bool {
+func check_collisions(well *Well, this_piece *Tetronimo, operation string) string {
 
 	if operation == "harddrop" {
-		return false
+		return "free"
 	}
 
 	ghost_piece := new(Tetronimo)
@@ -227,22 +232,22 @@ func check_collisions(well *Well, this_piece *Tetronimo, operation string) bool 
 
 			if ghost_piece.shape[t_vert][t_horz] > 0 {
 				if t_bit_horz < 0 {
-					return true
+					return "blocked"
 				}
 				if t_bit_horz >= len(well.debris_map[0]) {
-					return true
+					return "blocked"
 				}
 				if t_bit_vert < 0 {
-					return true
+					return "blocked"
 				}
 				if well.debris_map[t_bit_vert][t_bit_horz] > 0 {
-					return true
+					return "blocked"
 				}
 			}
 		}
 	}
 
-	return false
+	return "free"
 }
 
 func move_piece(piece *Tetronimo, well *Well, operation string) {
@@ -268,8 +273,8 @@ func sound_depth(this_piece *Tetronimo, well *Well) {
 
 	for ghost_height := ghost_piece.height; ghost_height >= 0; ghost_height-- {
 		ghost_piece.height = ghost_height
-		blocked := check_collisions(well, ghost_piece, "dropone")
-		if blocked == true {
+		piece_status := check_collisions(well, ghost_piece, "dropone")
+		if piece_status == "blocked" {
 			this_piece.height = ghost_height
 			return
 		}
@@ -452,18 +457,17 @@ func rand_piece(this_piece *Tetronimo, stats *Stats) {
 	}
 
 	var full_set [][][]int
-	for t_num := range basic_set {
-		full_set = append(full_set, basic_set[t_num])
+	if stats.piece_set["basic"] == true {
+		for t_num := range basic_set {
+			full_set = append(full_set, basic_set[t_num])
+		}
 	}
 
-	for t_num := range huge_set {
-		full_set = append(full_set, huge_set[t_num])
+	if stats.piece_set["huge"] == true {
+		for t_num := range huge_set {
+			full_set = append(full_set, huge_set[t_num])
+		}
 	}
-
-	// full_set := [][][]int{ basic_set , huge_set }
-	// copy(full_set,basic_set)
-	// full_set := append(huge_set)
-	// full_set = append(full_set,basic_set)
 
 	rand.Seed(time.Now().Unix())
 	rand_piece := rand.Intn(len(full_set))
@@ -481,8 +485,8 @@ func block_action(well *Well, piece *Tetronimo, operation string) string {
 
 	block_status := "free"
 
-	blocked := check_collisions(well, piece, operation)
-	if blocked == true {
+	piece_status := check_collisions(well, piece, operation)
+	if piece_status == "blocked" {
 		if operation == "dropone" {
 			block_status = "stuck"
 		}
@@ -623,8 +627,10 @@ func set_well(well *Well, well_depth, well_width int) {
 func set_stats(stats *Stats, set_count int) {
 
 	t_types := make([]int, set_count)
-
 	stats.t_types = t_types
+
+	piece_set := make(map[string]bool)
+	stats.piece_set = piece_set
 
 }
 
