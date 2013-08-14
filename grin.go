@@ -64,6 +64,8 @@ func main() {
 	well_width := flag.Int("w", default_width, "well width")
 	well_depth := flag.Int("d", default_depth, "well depth")
 	use_huge := flag.Bool("u", false, "Use huge pieces")
+	use_pento := flag.Bool("p", false, "Use pentomino pieces")
+	use_tiny := flag.Bool("t", false, "Use tiny pieces")
 	flag.Parse()
 
 	// init termbox
@@ -75,10 +77,12 @@ func main() {
 
 	// define stats
 	stats := new(Stats)
-	set_count := 20 // need to figure this dynamically
+	set_count := 25 // need to figure this dynamically
 	set_stats(stats, set_count)
 	stats.piece_set["basic"] = true
 	stats.piece_set["huge"] = *use_huge
+	stats.piece_set["pento"] = *use_pento
+	stats.piece_set["tiny"] = *use_tiny
 
 	// define piece set
 	p_size := 4
@@ -453,10 +457,32 @@ func rand_piece(this_piece *Tetronimo, stats *Stats) {
 		pieces.HugeL,
 		pieces.HugeJ,
 		pieces.HugeU,
+	}
+
+	var pento_set = [][][]int{
+		pieces.PentoF,
+		pieces.PentoL,
+		pieces.PentoN,
+		pieces.PentoP,
+		pieces.PentoT,
+		pieces.PentoT,
 		pieces.PentoU,
+		pieces.PentoV,
+		pieces.PentoW,
+		pieces.PentoX,
+		pieces.PentoY,
+		pieces.PentoZ,
+	}
+
+	var tiny_set = [][][]int{
+		pieces.TinyO,
+		pieces.TinyI,
+		pieces.SmallL,
+		pieces.SmallI,
 	}
 
 	var full_set [][][]int
+
 	if stats.piece_set["basic"] == true {
 		for t_num := range basic_set {
 			full_set = append(full_set, basic_set[t_num])
@@ -466,6 +492,18 @@ func rand_piece(this_piece *Tetronimo, stats *Stats) {
 	if stats.piece_set["huge"] == true {
 		for t_num := range huge_set {
 			full_set = append(full_set, huge_set[t_num])
+		}
+	}
+
+	if stats.piece_set["pento"] == true {
+		for t_num := range pento_set {
+			full_set = append(full_set, pento_set[t_num])
+		}
+	}
+
+	if stats.piece_set["tiny"] == true {
+		for t_num := range tiny_set {
+			full_set = append(full_set, tiny_set[t_num])
 		}
 	}
 
