@@ -14,8 +14,6 @@ import pieces "github.com/nickaubert/grin/pieces"
 /*
 	Improvements:
 		High scores in sqlite?
-		Adjustible well size and tetronimo set
-		Random debris map at start
 		Two players?
 	Done!
 		Fix rotate: when rotate, move top left of grid
@@ -33,6 +31,8 @@ import pieces "github.com/nickaubert/grin/pieces"
 		Cleanup functions, data objects (can always refactor)
 		Phantom blocks to fix rotation
 		Arrow key control
+		Adjustible well size and tetronimo set
+		Random debris map at start
 */
 
 type Tetronimo struct {
@@ -66,6 +66,7 @@ func main() {
 	use_huge := flag.Bool("u", false, "Use huge pieces")
 	use_pento := flag.Bool("p", false, "Use pentomino pieces")
 	use_tiny := flag.Bool("t", false, "Use tiny pieces")
+	junk_level := flag.Int("j", 0, "Starting junk")
 	flag.Parse()
 
 	// init termbox
@@ -77,7 +78,7 @@ func main() {
 
 	// define stats
 	stats := new(Stats)
-	set_count := 25 // need to figure this dynamically
+	set_count := 30 // need to figure this dynamically
 	set_stats(stats, set_count)
 	stats.piece_set["basic"] = true
 	stats.piece_set["huge"] = *use_huge
@@ -91,11 +92,14 @@ func main() {
 
 	// define well
 	well := new(Well)
-	set_well(well, *well_depth, *well_width)
+	set_well(well, *well_depth, *well_width, *junk_level)
 
 	// minimum window size before drawing borders
-	check_size(well, piece)
+	check_size(well, piece, *junk_level)
 	draw_border(well)
+
+	// draw starting junk
+	draw_debris(well)
 
 	// starting block
 	_ = new_piece(well, piece, stats)
@@ -650,15 +654,28 @@ func set_piece(piece *Tetronimo, p_size int) {
 
 }
 
-func set_well(well *Well, well_depth, well_width int) {
+func set_well(well *Well, well_depth, well_width, junk_level int) {
 
-	this_well := make([][]int, well_depth)
+	well_debris := make([][]int, well_depth)
+	rand.Seed(time.Now().Unix())
 	for i := 0; i < well_depth; i++ {
 		this_row := make([]int, well_width)
-		this_well[i] = this_row
+		// create some junk
+		if i < junk_level {
+			for j := 0; j < well_width; j++ {
+				on_off := rand.Intn(2)
+				if on_off > 0 {
+					color := rand.Intn(6) + 1
+					this_row[j] = color
+				}
+			}
+			// ensure that at least one block in row is empty
+			this_row[rand.Intn(well_width)] = 0
+		}
+		well_debris[i] = this_row
 	}
 
-	well.debris_map = this_well
+	well.debris_map = well_debris
 
 }
 
@@ -805,15 +822,20 @@ func set_key(this_key tb.Event) rune {
 
 }
 
-func check_size(well *Well, piece *Tetronimo) {
+func check_size(well *Well, piece *Tetronimo, junk_level int) {
+
+	if len(well.debris_map) < (junk_level + len(piece.shape)) {
+		error_string := fmt.Sprintf("Well is too small for that much junk\n")
+		error_out(error_string)
+	}
 
 	if len(well.debris_map) < len(piece.shape) {
-		error_string := fmt.Sprintf("Well is too small")
+		error_string := fmt.Sprintf("Well is too small\n")
 		error_out(error_string)
 	}
 
 	if len(well.debris_map[0]) < len(piece.shape[0]) {
-		error_string := fmt.Sprintf("Well is too small")
+		error_string := fmt.Sprintf("Well is too small\n")
 		error_out(error_string)
 	}
 
