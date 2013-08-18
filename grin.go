@@ -122,6 +122,9 @@ func main() {
 		case operation = <-ct:
 			go t_timer(ct, get_speed(stats))
 		case operation = <-ck:
+			if operation == "pause" {
+				_ = tb.PollEvent().Ch
+			}
 			go keys_in(ck)
 		}
 
@@ -130,12 +133,7 @@ func main() {
 			break
 		}
 
-		// pause
-		if operation == "pause" {
-			_ = tb.PollEvent().Ch
-		}
-
-		// attempt to move block
+		// attempt to move block get status
 		last_height := piece.height
 		block_status := block_action(well, piece, operation)
 
@@ -526,6 +524,10 @@ func rand_piece(this_piece *Tetronimo, stats *Stats) {
 func block_action(well *Well, piece *Tetronimo, operation string) string {
 
 	block_status := "free"
+
+	if operation == "pause" {
+		return block_status
+	}
 
 	piece_status := check_collisions(well, piece, operation)
 	if piece_status == "blocked" {
