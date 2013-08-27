@@ -6,8 +6,11 @@ import "fmt"
 import "math/rand"
 import "time"
 import "os"
+import "path"
 import "flag"
+import "database/sql"
 
+import _ "github.com/mattn/go-sqlite3"
 import tb "github.com/nsf/termbox-go"
 import pieces "github.com/nickaubert/grin/pieces"
 
@@ -68,6 +71,10 @@ func main() {
 	use_tiny := flag.Bool("t", false, "Use tiny pieces")
 	junk_level := flag.Int("j", 0, "Starting junk")
 	flag.Parse()
+
+	// check db file
+	db := init_db("/home/nick/.grin/score.db")
+	defer db.Close()
 
 	// init termbox
 	err := tb.Init()
@@ -164,7 +171,7 @@ func main() {
 	}
 
 	tb.Close()
-	end_stats(stats)
+	end_stats(stats, db)
 	fmt.Print("Game over\n")
 	os.Exit(0)
 
@@ -200,7 +207,7 @@ func show_stats(stats *Stats, well *Well) {
 
 }
 
-func end_stats(stats *Stats) {
+func end_stats(stats *Stats, db *sql.DB) {
 
 	fmt.Printf("tetronimos : %d\n", stats.p_count)
 	fmt.Printf("blocks     : %d\n", stats.b_count)
@@ -208,13 +215,22 @@ func end_stats(stats *Stats) {
 	fmt.Printf("score      : %d\n", stats.score)
 	fmt.Printf("speed      : %d\n", get_speed(stats))
 
-	fmt.Printf("tet O      : %d\n", stats.t_types[0])
-	fmt.Printf("tet T      : %d\n", stats.t_types[1])
-	fmt.Printf("tet L      : %d\n", stats.t_types[2])
-	fmt.Printf("tet J      : %d\n", stats.t_types[3])
-	fmt.Printf("tet S      : %d\n", stats.t_types[4])
-	fmt.Printf("tet Z      : %d\n", stats.t_types[5])
-	fmt.Printf("tet I      : %d\n", stats.t_types[6])
+	/*
+		fmt.Printf("tet O      : %d\n", stats.t_types[0])
+		fmt.Printf("tet T      : %d\n", stats.t_types[1])
+		fmt.Printf("tet L      : %d\n", stats.t_types[2])
+		fmt.Printf("tet J      : %d\n", stats.t_types[3])
+		fmt.Printf("tet S      : %d\n", stats.t_types[4])
+		fmt.Printf("tet Z      : %d\n", stats.t_types[5])
+		fmt.Printf("tet I      : %d\n", stats.t_types[6])
+	*/
+
+	update_score_sql := fmt.Sprintf("insert into stats(score) values (%d)", stats.score)
+	_, err := db.Exec(update_score_sql)
+	if err != nil {
+		fmt.Printf("ERROR updating sql ==%s== : %q:\n", update_score_sql, err)
+		os.Exit(1)
+	}
 
 }
 
@@ -859,4 +875,48 @@ func check_size(well *Well, piece *Tetronimo, junk_level int) {
 		error_out(error_string)
 	}
 
+}
+
+func init_db(filepath string) *sql.DB {
+
+	// fmt.Printf("no file %s\n", filepath)
+	db_dir := path.Dir(filepath)
+	init_dir(db_dir)
+
+	db, err := sql.Open("sqlite3", filepath)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	_, file_err := os.Stat(filepath)
+	if file_err == nil {
+		return db
+	}
+
+	create_table_sql := "create table stats (score integer not null)"
+	_, err = db.Exec(create_table_sql)
+	if err != nil {
+		fmt.Printf("ERROR initiating %s : %q:\n", filepath, err)
+		os.Exit(1)
+	}
+
+	return db
+
+}
+
+func init_dir(db_dir string) {
+	db_info, db_err := os.Stat(db_dir)
+	if db_err != nil {
+		mkdb_err := os.Mkdir(db_dir, 0755)
+		if mkdb_err != nil {
+			fmt.Println(mkdb_err)
+			os.Exit(1)
+		}
+		return
+	}
+	if db_info.IsDir() == false {
+		fmt.Printf("ERROR: %s exists but is not a directory\n", db_dir)
+		os.Exit(1)
+	}
 }
