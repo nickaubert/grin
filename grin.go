@@ -6,6 +6,7 @@ import "fmt"
 import "math/rand"
 import "time"
 import "os"
+import "os/user"
 import "path"
 import "flag"
 import "database/sql"
@@ -86,6 +87,7 @@ func main() {
 	// define stats
 	stats := new(Stats)
 	set_count := 30 // need to figure this dynamically
+	max_stats := 3  // top x score
 	set_stats(stats, set_count)
 	stats.piece_set["basic"] = true
 	stats.piece_set["huge"] = *use_huge
@@ -171,8 +173,8 @@ func main() {
 	}
 
 	tb.Close()
-	end_stats(stats, db)
 	fmt.Print("Game over\n")
+	end_stats(stats, max_stats, db)
 	os.Exit(0)
 
 }
@@ -207,13 +209,13 @@ func show_stats(stats *Stats, well *Well) {
 
 }
 
-func end_stats(stats *Stats, db *sql.DB) {
+func end_stats(stats *Stats, max_stats int, db *sql.DB) {
 
-	fmt.Printf("tetronimos : %d\n", stats.p_count)
-	fmt.Printf("blocks     : %d\n", stats.b_count)
-	fmt.Printf("rows       : %d\n", stats.rows)
-	fmt.Printf("score      : %d\n", stats.score)
-	fmt.Printf("speed      : %d\n", get_speed(stats))
+	fmt.Printf("score     : %d\n", stats.score)
+	fmt.Printf("rows      : %d\n", stats.rows)
+	fmt.Printf("top speed : %d\n", get_speed(stats))
+	fmt.Printf("pieces    : %d\n", stats.p_count)
+	fmt.Printf("blocks    : %d\n", stats.b_count)
 
 	/*
 		fmt.Printf("tet O      : %d\n", stats.t_types[0])
@@ -225,12 +227,8 @@ func end_stats(stats *Stats, db *sql.DB) {
 		fmt.Printf("tet I      : %d\n", stats.t_types[6])
 	*/
 
-	update_score_sql := fmt.Sprintf("insert into stats(score) values (%d)", stats.score)
-	_, err := db.Exec(update_score_sql)
-	if err != nil {
-		fmt.Printf("ERROR updating sql ==%s== : %q:\n", update_score_sql, err)
-		os.Exit(1)
-	}
+	update_db(stats, max_stats, db)
+	show_db_scores(db)
 
 }
 
@@ -894,7 +892,7 @@ func init_db(filepath string) *sql.DB {
 		return db
 	}
 
-	create_table_sql := "create table stats (score integer not null)"
+	create_table_sql := "create table stats (score integer not null, timestamp integer, user text)"
 	_, err = db.Exec(create_table_sql)
 	if err != nil {
 		fmt.Printf("ERROR initiating %s : %q:\n", filepath, err)
@@ -919,4 +917,71 @@ func init_dir(db_dir string) {
 		fmt.Printf("ERROR: %s exists but is not a directory\n", db_dir)
 		os.Exit(1)
 	}
+}
+
+func update_db(stats *Stats, max_stats int, db *sql.DB) {
+
+	rows, err := db.Query("select score from stats order by score limit 1")
+	if err != nil {
+		fmt.Println("ERROR querying db\n")
+		os.Exit(1)
+	}
+	defer rows.Close()
+
+	count_rows := 0
+	var min_score int
+	for rows.Next() {
+		count_rows++
+		rows.Scan(&min_score)
+	}
+	rows.Close()
+
+	if min_score > stats.score {
+		if count_rows > max_stats {
+			return
+		}
+	}
+
+	timenow := time.Now().Unix()
+	username := get_playername()
+
+	update_score_sql := fmt.Sprintf("insert into stats(score, timestamp, user) values (%d, %d, '%s')", stats.score, timenow, username)
+	_, err = db.Exec(update_score_sql)
+	if err != nil {
+		fmt.Printf("ERROR updating sql ==%s== : %q:\n", update_score_sql, err)
+		os.Exit(1)
+	}
+
+}
+
+func get_playername() string {
+
+	thisuser, err := user.Current()
+	if err != nil {
+		return "null"
+	}
+
+	return thisuser.Username
+
+}
+
+func show_db_scores(db *sql.DB) {
+
+	stats, err := db.Query("select score, timestamp, user from stats order by score desc")
+	if err != nil {
+		fmt.Println("ERROR querying db\n")
+		os.Exit(1)
+	}
+	defer stats.Close()
+
+	fmt.Print("\nHigh Scores:\nscore - player - date\n")
+	for stats.Next() {
+		var score int
+		var timestamp int
+		var player string
+		stats.Scan(&score, &timestamp, &player)
+		fmt.Printf("%d - %s - %s\n", score, player, time.Unix(int64(timestamp), 0))
+	}
+	stats.Close()
+
 }
