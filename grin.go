@@ -18,6 +18,7 @@ import pieces "github.com/nickaubert/grin/pieces"
 /*
 	Improvements:
 		High scores in sqlite?
+		Blocks should push away when rotating if blocked on right
 		Two players?
 	Done!
 		Fix rotate: when rotate, move top left of grid
@@ -87,7 +88,7 @@ func main() {
 	// define stats
 	stats := new(Stats)
 	set_count := 30 // need to figure this dynamically
-	max_stats := 3  // top x score
+	max_stats := 10 // top x score
 	set_stats(stats, set_count)
 	stats.piece_set["basic"] = true
 	stats.piece_set["huge"] = *use_huge
@@ -193,11 +194,11 @@ func show_stats(stats *Stats, well *Well) {
 	_, term_row := tb.Size()
 	vert_headroom := int((term_row-well_depth)/2) - 1
 
-	print_tb(0, vert_headroom+0, 0, 0, fmt.Sprintf("pieces : %d", stats.p_count))
-	print_tb(0, vert_headroom+1, 0, 0, fmt.Sprintf("blocks : %d", stats.b_count))
-	print_tb(0, vert_headroom+2, 0, 0, fmt.Sprintf("rows   : %d", stats.rows))
-	print_tb(0, vert_headroom+3, 0, 0, fmt.Sprintf("score  : %d", stats.score))
-	print_tb(0, vert_headroom+4, 0, 0, fmt.Sprintf("speed  : %d", get_speed(stats)))
+	print_tb(0, vert_headroom+0, 0, 0, fmt.Sprintf("score  : %d", stats.score))
+	print_tb(0, vert_headroom+1, 0, 0, fmt.Sprintf("rows   : %d", stats.rows))
+	print_tb(0, vert_headroom+2, 0, 0, fmt.Sprintf("speed  : %d", get_speed(stats)))
+	print_tb(0, vert_headroom+3, 0, 0, fmt.Sprintf("pieces : %d", stats.p_count))
+	print_tb(0, vert_headroom+4, 0, 0, fmt.Sprintf("blocks : %d", stats.b_count))
 
 	print_tb(0, vert_headroom+6, 0, 0, fmt.Sprintf("tet O  : %d", stats.t_types[0]))
 	print_tb(0, vert_headroom+7, 0, 0, fmt.Sprintf("tet T  : %d", stats.t_types[1]))
@@ -928,22 +929,45 @@ func update_db(stats *Stats, max_stats int, db *sql.DB) {
 	}
 	defer rows.Close()
 
-	count_rows := 0
 	var min_score int
 	for rows.Next() {
-		count_rows++
 		rows.Scan(&min_score)
 	}
 	rows.Close()
 
+	rows, err = db.Query("select count(*)from stats")
+	if err != nil {
+		fmt.Println("ERROR querying db\n")
+		os.Exit(1)
+	}
+	defer rows.Close()
+
+	var record_count int
+	for rows.Next() {
+		rows.Scan(&record_count)
+	}
+	rows.Close()
+
+	// fmt.Printf("is min_score > stats.score: %d > %d\n" , min_score , stats.score )
+	// fmt.Printf("is record_count > max_stats: %d > %d\n" , record_count , max_stats )
+
 	if min_score > stats.score {
-		if count_rows > max_stats {
+		if record_count >= max_stats {
 			return
 		}
 	}
 
 	timenow := time.Now().Unix()
 	username := get_playername()
+
+	if record_count >= max_stats {
+		remove_old_sql := fmt.Sprintf("delete from stats where score <= %d ", min_score)
+		_, err = db.Exec(remove_old_sql)
+		if err != nil {
+			fmt.Printf("ERROR updating sql ==%s== : %q:\n", remove_old_sql, err)
+			os.Exit(1)
+		}
+	}
 
 	update_score_sql := fmt.Sprintf("insert into stats(score, timestamp, user) values (%d, %d, '%s')", stats.score, timenow, username)
 	_, err = db.Exec(update_score_sql)
