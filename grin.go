@@ -228,8 +228,8 @@ func end_stats(stats *Stats, max_stats int, db *sql.DB) {
 		fmt.Printf("tet I      : %d\n", stats.t_types[6])
 	*/
 
-	update_db(stats, max_stats, db)
-	show_db_scores(db)
+	timenow := update_db(stats, max_stats, db)
+	show_db_scores(db, timenow)
 
 }
 
@@ -920,7 +920,7 @@ func init_dir(db_dir string) {
 	}
 }
 
-func update_db(stats *Stats, max_stats int, db *sql.DB) {
+func update_db(stats *Stats, max_stats int, db *sql.DB) int64 {
 
 	rows, err := db.Query("select score from stats order by score limit 1")
 	if err != nil {
@@ -948,14 +948,14 @@ func update_db(stats *Stats, max_stats int, db *sql.DB) {
 	}
 	rows.Close()
 
-	if min_score > stats.score {
-		if record_count >= max_stats {
-			return
-		}
-	}
-
 	timenow := time.Now().Unix()
 	username := get_playername()
+
+	if min_score > stats.score {
+		if record_count >= max_stats {
+			return timenow
+		}
+	}
 
 	if record_count >= max_stats {
 		remove_old_sql := fmt.Sprintf("delete from stats where score <= %d ", min_score)
@@ -973,6 +973,8 @@ func update_db(stats *Stats, max_stats int, db *sql.DB) {
 		os.Exit(1)
 	}
 
+	return timenow
+
 }
 
 func get_playername() string {
@@ -986,7 +988,7 @@ func get_playername() string {
 
 }
 
-func show_db_scores(db *sql.DB) {
+func show_db_scores(db *sql.DB, timenow int64) {
 
 	stats, err := db.Query("select score, timestamp, user from stats order by score desc")
 	if err != nil {
@@ -999,10 +1001,10 @@ func show_db_scores(db *sql.DB) {
 	max_score_len := len("score")
 	max_player_len := len("player")
 
-	fmt.Print("\nHigh Scores:\nscore - player - date\n")
+	fmt.Print("\nHigh Scores:\n   score - player - date\n")
 	for stats.Next() {
 		var score int
-		var timestamp int
+		var timestamp int64
 		var player string
 		stats.Scan(&score, &timestamp, &player)
 
@@ -1016,18 +1018,24 @@ func show_db_scores(db *sql.DB) {
 			max_player_len = player_len
 		}
 
+		asterisk := "  "
+		if timestamp == timenow {
+			asterisk = " *"
+		}
+
 		time := time.Unix(int64(timestamp), 0)
 		var show_score []string
 		show_score = append(show_score, fmt.Sprintf("%d", score))
 		show_score = append(show_score, player)
 		show_score = append(show_score, fmt.Sprintf("%04d-%02d-%02d", time.Year(), time.Month(), time.Day()))
+		show_score = append(show_score, asterisk )
 		show_scores = append(show_scores, show_score)
 	}
 	stats.Close()
 
 	for this_score := range show_scores {
-		format := fmt.Sprintf("%%%ds - %%%ds - %%s\n", max_score_len, max_player_len)
-		fmt.Printf(format, show_scores[this_score][0], show_scores[this_score][1], show_scores[this_score][2])
+		format := fmt.Sprintf("%%s %%%ds - %%%ds - %%s\n", max_score_len, max_player_len)
+		fmt.Printf(format, show_scores[this_score][3] , show_scores[this_score][0], show_scores[this_score][1], show_scores[this_score][2])
 	}
 
 }
