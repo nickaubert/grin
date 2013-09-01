@@ -948,9 +948,6 @@ func update_db(stats *Stats, max_stats int, db *sql.DB) {
 	}
 	rows.Close()
 
-	// fmt.Printf("is min_score > stats.score: %d > %d\n" , min_score , stats.score )
-	// fmt.Printf("is record_count > max_stats: %d > %d\n" , record_count , max_stats )
-
 	if min_score > stats.score {
 		if record_count >= max_stats {
 			return
@@ -998,14 +995,39 @@ func show_db_scores(db *sql.DB) {
 	}
 	defer stats.Close()
 
+	var show_scores [][]string
+	max_score_len := len("score")
+	max_player_len := len("player")
+
 	fmt.Print("\nHigh Scores:\nscore - player - date\n")
 	for stats.Next() {
 		var score int
 		var timestamp int
 		var player string
 		stats.Scan(&score, &timestamp, &player)
-		fmt.Printf("%d - %s - %s\n", score, player, time.Unix(int64(timestamp), 0))
+
+		score_len := len(fmt.Sprintf("%d", score))
+		if score_len > max_score_len {
+			max_score_len = score_len
+		}
+
+		player_len := len(player)
+		if player_len > max_player_len {
+			max_player_len = player_len
+		}
+
+		time := time.Unix(int64(timestamp), 0)
+		var show_score []string
+		show_score = append(show_score, fmt.Sprintf("%d", score))
+		show_score = append(show_score, player)
+		show_score = append(show_score, fmt.Sprintf("%04d-%02d-%02d", time.Year(), time.Month(), time.Day()))
+		show_scores = append(show_scores, show_score)
 	}
 	stats.Close()
+
+	for this_score := range show_scores {
+		format := fmt.Sprintf("%%%ds - %%%ds - %%s\n", max_score_len, max_player_len)
+		fmt.Printf(format, show_scores[this_score][0], show_scores[this_score][1], show_scores[this_score][2])
+	}
 
 }
