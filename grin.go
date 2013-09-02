@@ -256,7 +256,7 @@ func check_collisions(well *Well, this_piece *Tetronimo, operation string) strin
 					return "blocked"
 				}
 				if t_bit_horz >= len(well.debris_map[0]) {
-					return "blocked"
+					return "blocked_right"
 				}
 				if t_bit_vert < 0 {
 					return "blocked"
@@ -272,13 +272,16 @@ func check_collisions(well *Well, this_piece *Tetronimo, operation string) strin
 }
 
 func move_piece(piece *Tetronimo, well *Well, operation string) {
+
 	switch {
 	case operation == "left":
 		piece.longitude--
 	case operation == "right":
 		piece.longitude++
 	case operation == "rotate":
-		rotate_piece(piece)
+		rotate_piece(piece, "normal")
+	case operation == "rotate_right":
+		rotate_piece(piece, "right")
 	case operation == "dropone":
 		piece.height--
 	case operation == "harddrop":
@@ -545,6 +548,22 @@ func block_action(well *Well, piece *Tetronimo, operation string) string {
 	}
 
 	piece_status := check_collisions(well, piece, operation)
+
+	// if rotate is blocked on right, try shifting the grid
+	if piece_status == "blocked_right" {
+		if operation != "rotate" {
+			return "blocked"
+		}
+		status_right := check_collisions(well, piece, "rotate_right")
+		if status_right == "blocked" {
+			return status_right
+		}
+		if status_right == "blocked_right" {
+			return "blocked"
+		}
+		operation = "rotate_right"
+	}
+
 	if piece_status == "blocked" {
 		if operation == "dropone" {
 			block_status = "stuck"
@@ -566,13 +585,16 @@ func block_action(well *Well, piece *Tetronimo, operation string) string {
 
 }
 
-func rotate_piece(this_piece *Tetronimo) {
+func rotate_piece(this_piece *Tetronimo, rotation_type string) {
 
 	// rotate
 	ghost_piece := new(Tetronimo)
 	set_piece(ghost_piece, len(this_piece.shape))
 	ghost_piece.height = this_piece.height
 	ghost_piece.longitude = this_piece.longitude
+	if rotation_type == "right" {
+		top_right(ghost_piece)
+	}
 	for row := range ghost_piece.shape {
 		rotated_col := (len(ghost_piece.shape) - 1) - row
 		for col := range ghost_piece.shape[row] {
@@ -748,6 +770,57 @@ func get_speed(stats *Stats) int {
 }
 
 func top_left(this_piece *Tetronimo) {
+
+	row_top := 0
+	col_left := 0
+	row_offset := 0
+	col_offset := 0
+	for row := range this_piece.shape {
+		for _, col_val := range this_piece.shape[row] {
+			row_top += int(col_val)
+		}
+		if row_top == 0 {
+			row_offset += 1
+		}
+		col_left += int(this_piece.shape[row][0])
+	}
+
+	if col_left == 0 {
+		col_offset = 1
+	}
+
+	if row_offset > 2 {
+		row_offset = 2
+	}
+
+	ghost_piece := new(Tetronimo)
+	set_piece(ghost_piece, len(this_piece.shape))
+	ghost_piece.height = this_piece.height
+	ghost_piece.longitude = this_piece.longitude
+
+	for row := range this_piece.shape {
+		this_row := row - row_offset
+		if this_row < 0 {
+			for col := range this_piece.shape[row] {
+				ghost_piece.shape[len(this_piece.shape)+this_row][col] = 0
+			}
+		} else {
+			for col := range this_piece.shape[this_row] {
+				this_col := col - col_offset
+				if this_col < 0 {
+					ghost_piece.shape[this_row][len(this_piece.shape[row])-col_offset] = 0
+				} else {
+					ghost_piece.shape[this_row][this_col] = this_piece.shape[row][col]
+				}
+			}
+		}
+	}
+
+	clone_piece(ghost_piece, this_piece)
+
+}
+
+func top_right(this_piece *Tetronimo) {
 
 	row_top := 0
 	col_left := 0
@@ -1028,14 +1101,14 @@ func show_db_scores(db *sql.DB, timenow int64) {
 		show_score = append(show_score, fmt.Sprintf("%d", score))
 		show_score = append(show_score, player)
 		show_score = append(show_score, fmt.Sprintf("%04d-%02d-%02d", time.Year(), time.Month(), time.Day()))
-		show_score = append(show_score, asterisk )
+		show_score = append(show_score, asterisk)
 		show_scores = append(show_scores, show_score)
 	}
 	stats.Close()
 
 	for this_score := range show_scores {
 		format := fmt.Sprintf("%%s %%%ds - %%%ds - %%s\n", max_score_len, max_player_len)
-		fmt.Printf(format, show_scores[this_score][3] , show_scores[this_score][0], show_scores[this_score][1], show_scores[this_score][2])
+		fmt.Printf(format, show_scores[this_score][3], show_scores[this_score][0], show_scores[this_score][1], show_scores[this_score][2])
 	}
 
 }
