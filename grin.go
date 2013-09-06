@@ -256,7 +256,7 @@ func check_collisions(well *Well, this_piece *Tetronimo, operation string) strin
 					return "blocked"
 				}
 				if t_bit_horz >= len(well.debris_map[0]) {
-					return "blocked"
+					return "blocked_right"
 				}
 				if t_bit_vert < 0 {
 					return "blocked"
@@ -545,6 +545,34 @@ func block_action(well *Well, piece *Tetronimo, operation string) string {
 	}
 
 	piece_status := check_collisions(well, piece, operation)
+
+	// if piece is blocked on right wall, try shifting it to the left
+	left_shift := 0
+	if piece_status == "blocked_right" {
+
+		if operation != "rotate" {
+			return "blocked"
+		}
+
+		ghost_piece := new(Tetronimo)
+		set_piece(ghost_piece, len(piece.shape))
+		clone_piece(piece, ghost_piece)
+		ghost_piece.longitude -= 1
+		ghost_status := check_collisions(well, ghost_piece, operation)
+
+		if ghost_status == "blocked" {
+			return "blocked"
+		}
+
+		if ghost_status == "blocked_right" {
+			return "blocked"
+		}
+
+		// shift to the left
+		left_shift += 1
+
+	}
+
 	if piece_status == "blocked" {
 		if operation == "dropone" {
 			block_status = "stuck"
@@ -553,6 +581,8 @@ func block_action(well *Well, piece *Tetronimo, operation string) string {
 	}
 
 	draw_piece(well, "erase", piece)
+
+	piece.longitude -= left_shift
 
 	move_piece(piece, well, operation)
 
@@ -1028,14 +1058,14 @@ func show_db_scores(db *sql.DB, timenow int64) {
 		show_score = append(show_score, fmt.Sprintf("%d", score))
 		show_score = append(show_score, player)
 		show_score = append(show_score, fmt.Sprintf("%04d-%02d-%02d", time.Year(), time.Month(), time.Day()))
-		show_score = append(show_score, asterisk )
+		show_score = append(show_score, asterisk)
 		show_scores = append(show_scores, show_score)
 	}
 	stats.Close()
 
 	for this_score := range show_scores {
 		format := fmt.Sprintf("%%s %%%ds - %%%ds - %%s\n", max_score_len, max_player_len)
-		fmt.Printf(format, show_scores[this_score][3] , show_scores[this_score][0], show_scores[this_score][1], show_scores[this_score][2])
+		fmt.Printf(format, show_scores[this_score][3], show_scores[this_score][0], show_scores[this_score][1], show_scores[this_score][2])
 	}
 
 }
