@@ -272,6 +272,7 @@ func check_collisions(well *Well, this_piece *Tetronimo, operation string) strin
 }
 
 func move_piece(piece *Tetronimo, well *Well, operation string) {
+
 	switch {
 	case operation == "left":
 		piece.longitude--
