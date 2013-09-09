@@ -17,8 +17,6 @@ import pieces "github.com/nickaubert/grin/pieces"
 
 /*
 	Improvements:
-		High scores in sqlite?
-		Blocks should push away when rotating if blocked on right
 		Two players?
 	Done!
 		Fix rotate: when rotate, move top left of grid
@@ -38,6 +36,8 @@ import pieces "github.com/nickaubert/grin/pieces"
 		Arrow key control
 		Adjustible well size and tetronimo set
 		Random debris map at start
+		High scores in sqlite?
+		Blocks should push away when rotating if blocked on right
 */
 
 type Tetronimo struct {
@@ -68,9 +68,7 @@ func main() {
 	// get arguments
 	well_width := flag.Int("w", default_width, "well width")
 	well_depth := flag.Int("d", default_depth, "well depth")
-	use_huge := flag.Bool("u", false, "Use huge pieces")
-	use_pento := flag.Bool("p", false, "Use pentomino pieces")
-	use_tiny := flag.Bool("t", false, "Use tiny pieces")
+	use_extd := flag.Bool("e", false, "Use extended pieces set")
 	junk_level := flag.Int("j", 0, "Starting junk")
 	flag.Parse()
 
@@ -90,10 +88,7 @@ func main() {
 	set_count := 30 // need to figure this dynamically
 	max_stats := 10 // top x score
 	set_stats(stats, set_count)
-	stats.piece_set["basic"] = true
-	stats.piece_set["huge"] = *use_huge
-	stats.piece_set["pento"] = *use_pento
-	stats.piece_set["tiny"] = *use_tiny
+	stats.piece_set["extd"] = *use_extd
 
 	// define piece set
 	p_size := 4
@@ -471,17 +466,19 @@ func rand_piece(this_piece *Tetronimo, stats *Stats) {
 		pieces.BasicI,
 	}
 
-	var huge_set = [][][]int{
-		pieces.HugeL,
-		pieces.HugeJ,
-		pieces.HugeU,
-	}
-
-	var pento_set = [][][]int{
+	var exended_set = [][][]int{
+		pieces.TinyO,
+		pieces.TinyI,
+		pieces.SmallL,
+		pieces.SmallI,
 		pieces.PentoF,
+		pieces.PentoFb,
 		pieces.PentoL,
+		pieces.PentoLb,
 		pieces.PentoN,
+		pieces.PentoNb,
 		pieces.PentoP,
+		pieces.PentoPb,
 		pieces.PentoT,
 		pieces.PentoT,
 		pieces.PentoU,
@@ -489,47 +486,35 @@ func rand_piece(this_piece *Tetronimo, stats *Stats) {
 		pieces.PentoW,
 		pieces.PentoX,
 		pieces.PentoY,
+		pieces.PentoYb,
 		pieces.PentoZ,
 	}
 
-	var tiny_set = [][][]int{
-		pieces.TinyO,
-		pieces.TinyI,
-		pieces.SmallL,
-		pieces.SmallI,
-	}
-
 	var full_set [][][]int
-
-	if stats.piece_set["basic"] == true {
-		for t_num := range basic_set {
-			full_set = append(full_set, basic_set[t_num])
-		}
+	for t_num := range basic_set {
+		full_set = append(full_set, basic_set[t_num])
 	}
-
-	if stats.piece_set["huge"] == true {
-		for t_num := range huge_set {
-			full_set = append(full_set, huge_set[t_num])
-		}
-	}
-
-	if stats.piece_set["pento"] == true {
-		for t_num := range pento_set {
-			full_set = append(full_set, pento_set[t_num])
-		}
-	}
-
-	if stats.piece_set["tiny"] == true {
-		for t_num := range tiny_set {
-			full_set = append(full_set, tiny_set[t_num])
-		}
+	for t_num := range exended_set {
+		full_set = append(full_set, exended_set[t_num])
 	}
 
 	rand.Seed(time.Now().Unix())
-	rand_piece := rand.Intn(len(full_set))
+
+	// this logic favors pieces from basic set
+	chosen_set := basic_set
+	if stats.piece_set["extd"] == true {
+		rand_set := rand.Intn(2)
+		if rand_set == 1 {
+			for t_num := range exended_set {
+				chosen_set = append(chosen_set, full_set[t_num])
+			}
+		}
+	}
+
+	rand_piece := rand.Intn(len(chosen_set))
 
 	b_count := 4 // assume always tetro for now
-	copy_shape(full_set[rand_piece], this_piece.shape)
+	copy_shape(chosen_set[rand_piece], this_piece.shape)
 
 	stats.p_count += 1
 	stats.b_count += b_count
