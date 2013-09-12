@@ -16,8 +16,6 @@ import tb "github.com/nsf/termbox-go"
 import pieces "github.com/nickaubert/grin/pieces"
 
 /*
-	Improvements:
-		Two players?
 	Done!
 		Fix rotate: when rotate, move top left of grid
 		Hard drop
@@ -170,7 +168,7 @@ func main() {
 
 	tb.Close()
 	fmt.Print("Game over\n")
-	end_stats(stats, max_stats, db)
+	end_stats(stats, well, max_stats, db)
 	os.Exit(0)
 
 }
@@ -205,7 +203,7 @@ func show_stats(stats *Stats, well *Well) {
 
 }
 
-func end_stats(stats *Stats, max_stats int, db *sql.DB) {
+func end_stats(stats *Stats, well *Well, max_stats int, db *sql.DB) {
 
 	fmt.Printf("score     : %d\n", stats.score)
 	fmt.Printf("rows      : %d\n", stats.rows)
@@ -223,8 +221,8 @@ func end_stats(stats *Stats, max_stats int, db *sql.DB) {
 		fmt.Printf("tet I      : %d\n", stats.t_types[6])
 	*/
 
-	timenow := update_db(stats, max_stats, db)
-	show_db_scores(db, timenow)
+	timenow := update_db(stats, well, max_stats, db)
+	show_db_scores(stats, well, db, timenow)
 
 }
 
@@ -909,7 +907,14 @@ func init_db(filepath string) *sql.DB {
 		return db
 	}
 
-	create_table_sql := "create table stats (score integer not null, timestamp integer, user text)"
+	create_table_sql := `create table stats (
+		score integer not null, 
+		timestamp integer, 
+		user text,
+		width integer not null default 10,
+		depth integer not null default 20,
+		extended_set integer not null default 0
+	)`
 	_, err = db.Exec(create_table_sql)
 	if err != nil {
 		fmt.Printf("ERROR initiating %s : %q:\n", filepath, err)
@@ -936,11 +941,35 @@ func init_dir(db_dir string) {
 	}
 }
 
-func update_db(stats *Stats, max_stats int, db *sql.DB) int64 {
+func update_db(stats *Stats, well *Well, max_stats int, db *sql.DB) int64 {
 
-	rows, err := db.Query("select score from stats order by score limit 1")
+	well_depth := len(well.debris_map)
+	well_width := len(well.debris_map[0])
+	extended_set := 0
+	if stats.piece_set["extd"] == true {
+		extended_set = 1
+	}
+
+	check_score_sql := fmt.Sprintf(`
+		select 
+			score 
+		from 
+			stats 
+		where
+			width = %d
+		and
+			depth = %d
+		and
+			extended_set = %d
+		order by 
+			score 
+		limit 1
+	`, well_width, well_depth, extended_set)
+
+	rows, err := db.Query(check_score_sql)
 	if err != nil {
 		fmt.Println("ERROR querying db\n")
+		fmt.Println(check_score_sql)
 		os.Exit(1)
 	}
 	defer rows.Close()
@@ -951,9 +980,22 @@ func update_db(stats *Stats, max_stats int, db *sql.DB) int64 {
 	}
 	rows.Close()
 
-	rows, err = db.Query("select count(*)from stats")
+	row_count_sql := fmt.Sprintf(`
+		select 
+			count(*)
+		from 
+			stats
+		where
+			width = %d
+		and
+			depth = %d
+		and
+			extended_set = %d
+	`, well_width, well_depth, extended_set)
+	rows, err = db.Query(row_count_sql)
 	if err != nil {
 		fmt.Println("ERROR querying db\n")
+		fmt.Println(row_count_sql)
 		os.Exit(1)
 	}
 	defer rows.Close()
@@ -974,7 +1016,18 @@ func update_db(stats *Stats, max_stats int, db *sql.DB) int64 {
 	}
 
 	if record_count >= max_stats {
-		remove_old_sql := fmt.Sprintf("delete from stats where score <= %d ", min_score)
+		remove_old_sql := fmt.Sprintf(`
+			delete from 
+				stats 
+			where 
+				score <= %d
+			and 
+				width = %d
+			and
+				depth = %d
+			and
+				extended_set = %d
+		`, min_score, well_width, well_depth, extended_set)
 		_, err = db.Exec(remove_old_sql)
 		if err != nil {
 			fmt.Printf("ERROR updating sql ==%s== : %q:\n", remove_old_sql, err)
@@ -982,7 +1035,22 @@ func update_db(stats *Stats, max_stats int, db *sql.DB) int64 {
 		}
 	}
 
-	update_score_sql := fmt.Sprintf("insert into stats(score, timestamp, user) values (%d, %d, '%s')", stats.score, timenow, username)
+	update_score_sql := fmt.Sprintf(
+		`insert into stats(
+			score, 
+				timestamp, 
+			user,
+			width,
+			depth,
+			extended_set
+		) values (
+			%d, 
+			%d, 
+			'%s',
+			%d, 
+			%d, 
+			%d 
+		)`, stats.score, timenow, username, well_width, well_depth, extended_set)
 	_, err = db.Exec(update_score_sql)
 	if err != nil {
 		fmt.Printf("ERROR updating sql ==%s== : %q:\n", update_score_sql, err)
@@ -1004,25 +1072,50 @@ func get_playername() string {
 
 }
 
-func show_db_scores(db *sql.DB, timenow int64) {
+func show_db_scores(stats *Stats, well *Well, db *sql.DB, timenow int64) {
 
-	stats, err := db.Query("select score, timestamp, user from stats order by score desc")
+	well_depth := len(well.debris_map)
+	well_width := len(well.debris_map[0])
+	extended_set := 0
+	if stats.piece_set["extd"] == true {
+		extended_set = 1
+	}
+
+	get_scores_sql := fmt.Sprintf(`
+		select 
+			score, 
+			timestamp, 
+			user
+		from 
+			stats
+		where
+			width = %d
+		and
+			depth = %d
+		and
+			extended_set = %d
+		order by 
+			score 
+		desc
+	`, well_width, well_depth, extended_set)
+
+	scores, err := db.Query(get_scores_sql)
 	if err != nil {
 		fmt.Println("ERROR querying db\n")
 		os.Exit(1)
 	}
-	defer stats.Close()
+	defer scores.Close()
 
 	var show_scores [][]string
 	max_score_len := len("score")
 	max_player_len := len("player")
 
 	fmt.Print("\nHigh Scores:\n   score - player - date\n")
-	for stats.Next() {
+	for scores.Next() {
 		var score int
 		var timestamp int64
 		var player string
-		stats.Scan(&score, &timestamp, &player)
+		scores.Scan(&score, &timestamp, &player)
 
 		score_len := len(fmt.Sprintf("%d", score))
 		if score_len > max_score_len {
@@ -1047,7 +1140,7 @@ func show_db_scores(db *sql.DB, timenow int64) {
 		show_score = append(show_score, asterisk)
 		show_scores = append(show_scores, show_score)
 	}
-	stats.Close()
+	scores.Close()
 
 	for this_score := range show_scores {
 		format := fmt.Sprintf("%%s %%%ds - %%%ds - %%s\n", max_score_len, max_player_len)
