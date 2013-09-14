@@ -454,65 +454,30 @@ func clear_debris(well *Well, stats *Stats) {
 
 func rand_piece(this_piece *Tetronimo, stats *Stats) {
 
-	var basic_set = [][][]int{
-		pieces.BasicO,
-		pieces.BasicT,
-		pieces.BasicL,
-		pieces.BasicJ,
-		pieces.BasicS,
-		pieces.BasicZ,
-		pieces.BasicI,
-	}
-
-	var exended_set = [][][]int{
-		pieces.TinyO,
-		pieces.TinyI,
-		pieces.SmallL,
-		pieces.SmallI,
-		pieces.PentoF,
-		pieces.PentoFb,
-		pieces.PentoL,
-		pieces.PentoLb,
-		pieces.PentoN,
-		pieces.PentoNb,
-		pieces.PentoP,
-		pieces.PentoPb,
-		pieces.PentoT,
-		pieces.PentoT,
-		pieces.PentoU,
-		pieces.PentoV,
-		pieces.PentoW,
-		pieces.PentoX,
-		pieces.PentoY,
-		pieces.PentoYb,
-		pieces.PentoZ,
-	}
-
-	var full_set [][][]int
-	for t_num := range basic_set {
-		full_set = append(full_set, basic_set[t_num])
-	}
-	for t_num := range exended_set {
-		full_set = append(full_set, exended_set[t_num])
-	}
-
 	rand.Seed(time.Now().Unix())
 
+	BasicSet := pieces.SetBasic()
+	ExtendedSet := pieces.SetExtended()
+
+	FullSet := BasicSet
+	for t_num := range ExtendedSet {
+		FullSet = append(FullSet, ExtendedSet[t_num])
+	}
+
 	// this logic favors pieces from basic set
-	chosen_set := basic_set
+	ChosenSet := BasicSet
 	if stats.piece_set["extd"] == true {
 		rand_set := rand.Intn(2)
 		if rand_set == 1 {
-			for t_num := range exended_set {
-				chosen_set = append(chosen_set, full_set[t_num])
-			}
+			ChosenSet = FullSet
 		}
 	}
 
-	rand_piece := rand.Intn(len(chosen_set))
+	rand_piece := rand.Intn(len(ChosenSet))
 
 	b_count := 4 // assume always tetro for now
-	copy_shape(chosen_set[rand_piece], this_piece.shape)
+	chosen_piece := ChosenSet[rand_piece]
+	copy_shape(chosen_piece.Shape, this_piece.shape)
 
 	stats.p_count += 1
 	stats.b_count += b_count
