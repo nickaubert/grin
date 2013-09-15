@@ -54,6 +54,7 @@ type Stats struct {
 	score     int
 	rows      int
 	t_types   []int
+	p_types   map[string]int
 	piece_set map[string]bool
 }
 
@@ -193,13 +194,19 @@ func show_stats(stats *Stats, well *Well) {
 	print_tb(0, vert_headroom+3, 0, 0, fmt.Sprintf("pieces : %d", stats.p_count))
 	print_tb(0, vert_headroom+4, 0, 0, fmt.Sprintf("blocks : %d", stats.b_count))
 
-	print_tb(0, vert_headroom+6, 0, 0, fmt.Sprintf("tet O  : %d", stats.t_types[0]))
-	print_tb(0, vert_headroom+7, 0, 0, fmt.Sprintf("tet T  : %d", stats.t_types[1]))
-	print_tb(0, vert_headroom+8, 0, 0, fmt.Sprintf("tet L  : %d", stats.t_types[2]))
-	print_tb(0, vert_headroom+9, 0, 0, fmt.Sprintf("tet J  : %d", stats.t_types[3]))
-	print_tb(0, vert_headroom+10, 0, 0, fmt.Sprintf("tet S  : %d", stats.t_types[4]))
-	print_tb(0, vert_headroom+11, 0, 0, fmt.Sprintf("tet Z  : %d", stats.t_types[5]))
-	print_tb(0, vert_headroom+12, 0, 0, fmt.Sprintf("tet I  : %d", stats.t_types[6]))
+	ShowSet := pieces.SetBasic()
+	if stats.piece_set["extd"] == true {
+		ShowSet = pieces.SetExtended()
+	}
+
+	p_row := vert_headroom + 6
+	for _, value := range ShowSet {
+		if p_row >= term_row {
+			break
+		}
+		print_tb(0, p_row, 0, 0, fmt.Sprintf("%s  : %d", value.Name, stats.p_types[value.Name]))
+		p_row += 1
+	}
 
 }
 
@@ -209,17 +216,16 @@ func end_stats(stats *Stats, well *Well, max_stats int, db *sql.DB) {
 	fmt.Printf("rows      : %d\n", stats.rows)
 	fmt.Printf("top speed : %d\n", get_speed(stats))
 	fmt.Printf("pieces    : %d\n", stats.p_count)
-	fmt.Printf("blocks    : %d\n", stats.b_count)
+	fmt.Print("")
 
-	/*
-		fmt.Printf("tet O      : %d\n", stats.t_types[0])
-		fmt.Printf("tet T      : %d\n", stats.t_types[1])
-		fmt.Printf("tet L      : %d\n", stats.t_types[2])
-		fmt.Printf("tet J      : %d\n", stats.t_types[3])
-		fmt.Printf("tet S      : %d\n", stats.t_types[4])
-		fmt.Printf("tet Z      : %d\n", stats.t_types[5])
-		fmt.Printf("tet I      : %d\n", stats.t_types[6])
-	*/
+	ShowSet := pieces.SetBasic()
+	if stats.piece_set["extd"] == true {
+		ShowSet = pieces.SetExtended()
+	}
+
+	for _, value := range ShowSet {
+		fmt.Printf("%s    : %d\n", value.Name, stats.p_types[value.Name])
+	}
 
 	timenow := update_db(stats, well, max_stats, db)
 	show_db_scores(stats, well, db, timenow)
@@ -479,9 +485,12 @@ func rand_piece(this_piece *Tetronimo, stats *Stats) {
 	chosen_piece := ChosenSet[rand_piece]
 	copy_shape(chosen_piece.Shape, this_piece.shape)
 
+	piece_name := chosen_piece.Name
+
 	stats.p_count += 1
 	stats.b_count += b_count
 	stats.t_types[rand_piece] += 1
+	stats.p_types[piece_name] += 1
 
 }
 
@@ -682,6 +691,9 @@ func set_stats(stats *Stats, set_count int) {
 
 	piece_set := make(map[string]bool)
 	stats.piece_set = piece_set
+
+	piece_names := make(map[string]int)
+	stats.p_types = piece_names
 
 }
 
