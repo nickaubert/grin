@@ -208,7 +208,7 @@ func show_stats(stats *Stats, well *Well) {
 			break
 		}
 		if stats.p_types[value.Name] > 0 {
-			print_tb(0, p_row, 0, 0, fmt.Sprintf("%s  : %d", value.Name, stats.p_types[value.Name]))
+			print_tb(0, p_row, 0, 0, fmt.Sprintf("%- 7s  : %d  ", value.Name, stats.p_types[value.Name]))
 			p_row += 1
 		}
 	}
@@ -221,15 +221,20 @@ func end_stats(stats *Stats, well *Well, max_stats int, db *sql.DB) {
 	fmt.Printf("rows      : %d\n", stats.rows)
 	fmt.Printf("top speed : %d\n", get_speed(stats))
 	fmt.Printf("pieces    : %d\n", stats.p_count)
-	fmt.Print("")
+	fmt.Print("\n")
 
 	ShowSet := pieces.SetBasic()
 	if stats.piece_set["extd"] == true {
-		ShowSet = pieces.SetExtended()
+		ExtendedSet := pieces.SetExtended()
+		for t_num := range ExtendedSet {
+			ShowSet = append(ShowSet, ExtendedSet[t_num])
+		}
 	}
 
 	for _, value := range ShowSet {
-		fmt.Printf("%s    : %d\n", value.Name, stats.p_types[value.Name])
+		if stats.p_types[value.Name] > 0 {
+			fmt.Printf("%- 7s  : %d\n", value.Name, stats.p_types[value.Name])
+		}
 	}
 
 	timenow := update_db(stats, well, max_stats, db)
