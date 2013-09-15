@@ -196,7 +196,10 @@ func show_stats(stats *Stats, well *Well) {
 
 	ShowSet := pieces.SetBasic()
 	if stats.piece_set["extd"] == true {
-		ShowSet = pieces.SetExtended()
+		ExtendedSet := pieces.SetExtended()
+		for t_num := range ExtendedSet {
+			ShowSet = append(ShowSet, ExtendedSet[t_num])
+		}
 	}
 
 	p_row := vert_headroom + 6
@@ -204,8 +207,10 @@ func show_stats(stats *Stats, well *Well) {
 		if p_row >= term_row {
 			break
 		}
-		print_tb(0, p_row, 0, 0, fmt.Sprintf("%s  : %d", value.Name, stats.p_types[value.Name]))
-		p_row += 1
+		if stats.p_types[value.Name] > 0 {
+			print_tb(0, p_row, 0, 0, fmt.Sprintf("%s  : %d", value.Name, stats.p_types[value.Name]))
+			p_row += 1
+		}
 	}
 
 }
