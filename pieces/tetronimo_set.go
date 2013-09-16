@@ -9,7 +9,7 @@ func SetBasic() []Piece {
 
 	BasicPieces := make([]Piece, 7)
 
-	BasicPieces[0].Name = "BasicO"
+	BasicPieces[0].Name = "TetroO"
 	BasicPieces[0].Shape = [][]int{
 		{1, 1, 0, 0},
 		{1, 1, 0, 0},
@@ -17,7 +17,7 @@ func SetBasic() []Piece {
 		{0, 0, 0, 0},
 	}
 
-	BasicPieces[1].Name = "BasicT"
+	BasicPieces[1].Name = "TetroT"
 	BasicPieces[1].Shape = [][]int{
 		{2, 2, 2, 0},
 		{0, 2, 0, 0},
@@ -25,7 +25,7 @@ func SetBasic() []Piece {
 		{0, 0, 0, 0},
 	}
 
-	BasicPieces[2].Name = "BasicL"
+	BasicPieces[2].Name = "TetroL"
 	BasicPieces[2].Shape = [][]int{
 		{3, 0, 0, 0},
 		{3, 0, 0, 0},
@@ -33,7 +33,7 @@ func SetBasic() []Piece {
 		{0, 0, 0, 0},
 	}
 
-	BasicPieces[3].Name = "BasicJ"
+	BasicPieces[3].Name = "TetroJ"
 	BasicPieces[3].Shape = [][]int{
 		{0, 4, 0, 0},
 		{0, 4, 0, 0},
@@ -41,7 +41,7 @@ func SetBasic() []Piece {
 		{0, 0, 0, 0},
 	}
 
-	BasicPieces[4].Name = "BasicS"
+	BasicPieces[4].Name = "TetroS"
 	BasicPieces[4].Shape = [][]int{
 		{0, 5, 5, 0},
 		{5, 5, 0, 0},
@@ -49,7 +49,7 @@ func SetBasic() []Piece {
 		{0, 0, 0, 0},
 	}
 
-	BasicPieces[5].Name = "BasicZ"
+	BasicPieces[5].Name = "TetroZ"
 	BasicPieces[5].Shape = [][]int{
 		{6, 6, 0, 0},
 		{0, 6, 6, 0},
@@ -58,7 +58,7 @@ func SetBasic() []Piece {
 	}
 
 	// includes negative phantom blocks to help rotation
-	BasicPieces[6].Name = "BasicI"
+	BasicPieces[6].Name = "TetroI"
 	BasicPieces[6].Shape = [][]int{
 		{0, 7, 0, 0},
 		{-1, 7, 0, 0},

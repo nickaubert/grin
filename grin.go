@@ -1,7 +1,5 @@
 package main
 
-// http://tetrisconcept.net/wiki/Tetris_Guideline
-
 import "fmt"
 import "math/rand"
 import "time"
@@ -9,6 +7,9 @@ import "os"
 import "os/user"
 import "path"
 import "flag"
+import "strings"
+import "bufio"
+import "regexp"
 import "database/sql"
 
 import _ "github.com/mattn/go-sqlite3"
@@ -994,13 +995,15 @@ func update_db(stats *Stats, well *Well, max_stats int, db *sql.DB) int64 {
 	rows.Close()
 
 	timenow := time.Now().Unix()
-	username := get_playername()
 
+	// return here if no update score
 	if min_score > stats.score {
 		if record_count >= max_stats {
 			return timenow
 		}
 	}
+
+	username := get_playername()
 
 	if record_count >= max_stats {
 		remove_old_sql := fmt.Sprintf(`
@@ -1033,7 +1036,7 @@ func update_db(stats *Stats, well *Well, max_stats int, db *sql.DB) int64 {
 		) values (
 			%d, 
 			%d, 
-			'%s',
+			"%s",
 			%d, 
 			%d, 
 			%d 
@@ -1051,11 +1054,36 @@ func update_db(stats *Stats, well *Well, max_stats int, db *sql.DB) int64 {
 func get_playername() string {
 
 	thisuser, err := user.Current()
+	username := thisuser.Username
 	if err != nil {
-		return "null"
+		username = ""
 	}
 
-	return thisuser.Username
+	fmt.Printf("Enter name [%s]: ", username)
+
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	given_user := scanner.Text()
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+		return username
+	}
+
+	// sanitize
+	re := regexp.MustCompile("[^\\w\\d ]")
+	given_user = re.ReplaceAllString(given_user, "")
+
+	given_user = strings.TrimSpace(given_user)
+	if given_user == "" {
+		return username
+	}
+
+	if len(given_user) > 20 {
+		given_user = given_user[:20]
+		given_user = strings.TrimSpace(given_user)
+	}
+
+	return given_user
 
 }
 

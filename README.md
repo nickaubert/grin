@@ -17,4 +17,6 @@ $ grin -h
 
   -w=10: well width
 
+Tetris info and jargon here: // http://tetrisconcept.net/wiki/Tetris_Guideline
+
 This is really an excuse to learn Go.
