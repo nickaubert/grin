@@ -57,6 +57,7 @@ type Stats struct {
 	t_types   []int
 	p_types   map[string]int
 	piece_set map[string]bool
+	current   string
 }
 
 func main() {
@@ -208,8 +209,12 @@ func show_stats(stats *Stats, well *Well) {
 		if p_row >= term_row {
 			break
 		}
+		star := " "
+		if stats.current == value.Name {
+			star = "*"
+		}
 		if stats.p_types[value.Name] > 0 {
-			print_tb(0, p_row, 0, 0, fmt.Sprintf("%- 7s  : %d  ", value.Name, stats.p_types[value.Name]))
+			print_tb(0, p_row, 0, 0, fmt.Sprintf("%- 7s: %d %s", value.Name, stats.p_types[value.Name], star))
 			p_row += 1
 		}
 	}
@@ -502,6 +507,7 @@ func rand_piece(this_piece *Tetronimo, stats *Stats) {
 	stats.b_count += b_count
 	stats.t_types[rand_piece] += 1
 	stats.p_types[piece_name] += 1
+	stats.current = piece_name
 
 }
 
