@@ -74,11 +74,19 @@ func main() {
 	flag.Parse()
 
 	// check db file
-	db := init_db("/home/nick/.grin/score.db")
+    var homedir string
+	user, err := user.Current()
+	if err == nil {
+		homedir = user.HomeDir
+	}
+
+	db_file := homedir
+	db_file += "/.grin/score.db"
+	db := init_db(db_file)
 	defer db.Close()
 
 	// init termbox
-	err := tb.Init()
+	err = tb.Init()
 	if err != nil {
 		panic(err)
 	}
